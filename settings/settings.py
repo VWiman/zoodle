@@ -10,6 +10,8 @@ from pathlib import Path
 RAW_DATA_DIR = Path("data") / "raw"
 PROCESSED_DATA_DIR = Path("data") / "processed"
 EDA_OUTPUT_DIR = Path("output") / "eda"
+PCA_OUTPUT_DIR = Path("output") / "pca"
+UMAP_OUTPUT_DIR = Path("output") / "umap"
 
 
 # ============================================================
@@ -70,6 +72,68 @@ ANIMAL_CLASSES = [
     "snake",
 ]
 
+# Djurgrupperna används för att skapa mer lättlästa visualiseringar.
+ANIMAL_GROUPS = {
+    "Däggdjur": [
+        "bat",
+        "bear",
+        "camel",
+        "cat",
+        "cow",
+        "dog",
+        "elephant",
+        "giraffe",
+        "hedgehog",
+        "horse",
+        "kangaroo",
+        "lion",
+        "monkey",
+        "mouse",
+        "panda",
+        "pig",
+        "rabbit",
+        "raccoon",
+        "rhinoceros",
+        "sheep",
+        "squirrel",
+        "tiger",
+        "zebra",
+    ],
+    "Fåglar": [
+        "bird",
+        "duck",
+        "flamingo",
+        "owl",
+        "parrot",
+        "penguin",
+        "swan",
+    ],
+    "Vattendjur": [
+        "crab",
+        "dolphin",
+        "fish",
+        "lobster",
+        "octopus",
+        "sea turtle",
+        "shark",
+        "whale",
+    ],
+    "Insekter och små ryggradslösa djur": [
+        "ant",
+        "bee",
+        "butterfly",
+        "mosquito",
+        "scorpion",
+        "snail",
+        "spider",
+    ],
+    "Reptiler och groddjur": [
+        "crocodile",
+        "frog",
+        "snake",
+    ],
+}
+
 
 # ============================================================
 # 3. DATAFÖRBEREDELSE
@@ -83,3 +147,14 @@ RANDOM_STATE = 42
 TRAIN_RATIO = 0.70
 VALIDATION_RATIO = 0.15
 TEST_RATIO = 0.15
+
+
+# ============================================================
+# 4. PCA OCH UMAP
+# ============================================================
+# Ett balanserat urval håller analysen hanterbar utan att någon klass dominerar.
+PCA_SAMPLES_PER_CLASS = 500
+UMAP_SAMPLES_PER_CLASS = 250
+PCA_VARIANCE = 0.95
+UMAP_N_NEIGHBORS = 15
+UMAP_MIN_DIST = 0.1

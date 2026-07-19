@@ -16,7 +16,7 @@ Projektets terminalmeny är uppdelad i följande steg:
 6. Utvärdera modellen
 7. Kör hela flödet
 
-Nedladdningen, dataförberedelsen och EDA är implementerade. Övriga steg är för närvarande tomma delar som kommer att byggas vidare under projektets gång.
+Nedladdningen, dataförberedelsen, EDA, PCA och UMAP är implementerade. Övriga steg är för närvarande tomma delar som kommer att byggas vidare under projektets gång.
 
 ## Projektstruktur
 
@@ -26,12 +26,15 @@ zoodle/
 │   ├── raw/                  # Nedladdade Quick, Draw!-filer
 │   └── processed/            # Träning, validering och test
 ├── output/
-│   └── eda/                  # Statistik och figurer från EDA
+│   ├── eda/                  # Statistik och figurer från EDA
+│   ├── pca/                  # Resultat från PCA
+│   └── umap/                 # Resultat från UMAP
 ├── settings/
 │   ├── __init__.py
 │   └── settings.py          # Gemensamma sökvägar och inställningar
 ├── download_dataset.py          # Laddar ner datasetet
 ├── eda.py                       # Utforskar träningsdatan
+├── pca_umap.py                  # Analyserar bilder med PCA och UMAP
 ├── prepare_data.py              # Förbereder och delar upp datasetet
 ├── pipeline.py                  # Projektets terminalmeny
 ├── requirements.txt            # Projektets Python-bibliotek
@@ -83,6 +86,14 @@ python eda.py
 
 EDA använder endast träningsdatan. Statistik, tabeller och figurer sparas i `output/eda`. Tidigare EDA-filer skrivs över när steget körs igen.
 
+PCA och UMAP kan köras direkt efter dataförberedelsen:
+
+```bash
+python pca_umap.py
+```
+
+PCA-resultatet sparas i `output/pca` och UMAP-resultatet sparas i `output/umap`. Båda analyserna använder balanserade urval från träningsdatan och skriver över tidigare filer.
+
 ## Git-konventioner
 
 ### Branch-namn
@@ -127,4 +138,4 @@ chore: update gitignore
 
 ## Status
 
-Projektet är under utveckling och byggs stegvis. Nästa delar blir PCA, UMAP och modellträning.
+Projektet är under utveckling och byggs stegvis. Nästa del blir modellträning.
