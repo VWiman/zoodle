@@ -65,6 +65,48 @@ python download_dataset.py
 
 Filer som redan har laddats ner hoppas över, vilket gör att nedladdningen kan fortsätta om den avbryts.
 
+## Git-konventioner
+
+### Branch-namn
+
+- Skriv branch-namn på engelska med små bokstäver.
+- Använd bindestreck mellan orden.
+- Börja namnet med typen av ändring.
+- Använd ett kort och beskrivande namn för uppgiften.
+
+Vanliga prefix:
+
+- `feature-` för ny funktionalitet
+- `fix-` för felrättningar
+- `refactor-` för omstrukturering av kod
+- `docs-` för dokumentation
+- `test-` för tester
+- `chore-` för underhåll
+
+Exempel:
+
+```text
+feature-data-download
+feature-model-training
+fix-download-error
+docs-update-readme
+```
+
+### Commit-meddelanden
+
+Skriv korta och tydliga commit-meddelanden på engelska. Använd ett prefix som visar vilken typ av ändring commiten innehåller.
+
+Exempel:
+
+```text
+feat: add dataset download
+fix: handle missing data file
+refactor: simplify pipeline menu
+docs: update project instructions
+test: add settings tests
+chore: update gitignore
+```
+
 ## Status
 
 Projektet är under utveckling och byggs stegvis. Nästa delar blir dataförberedelse, analys och modellträning.
