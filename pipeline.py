@@ -7,6 +7,7 @@ separately or running the complete pipeline in order.
 
 from download_dataset import download_dataset
 from eda import run_eda
+from pca_umap import run_pca_umap
 from prepare_data import prepare_dataset
 
 
@@ -37,9 +38,9 @@ def explore_data():
 # ============================================================
 # 4. ANALYSERA MED PCA OCH UMAP
 # ============================================================
-# Här ska PCA och UMAP användas för att undersöka mönster i bilderna.
+# PCA och UMAP används för att undersöka mönster i träningsbilderna.
 def analyze_dimensions():
-    print("\nPCA och UMAP är inte implementerade än.")
+    run_pca_umap()
 
 
 # ============================================================
