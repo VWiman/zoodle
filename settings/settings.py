@@ -9,6 +9,7 @@ from pathlib import Path
 # Rådata sparas separat så att originalfilerna inte förändras senare i flödet.
 RAW_DATA_DIR = Path("data") / "raw"
 PROCESSED_DATA_DIR = Path("data") / "processed"
+EDA_OUTPUT_DIR = Path("output") / "eda"
 
 
 # ============================================================

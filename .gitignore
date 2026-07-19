@@ -169,18 +169,18 @@ __marimo__/
 
 .DS_Store
 .matplotlib_cache/
-eda_outputs/
 PROJECT_INSTRUCTIONS.md
 IMPLEMENTATION_ROADMAP.md
 
 # Zoodle generated datasets
 data/
 
-# Zoodle generated models and analysis outputs
+# Zoodle generated analysis outputs
+output/
+
+# Zoodle generated models
 artifacts/*
 !artifacts/.gitkeep
-outputs/*
-!outputs/.gitkeep
 
 # Model, array and local report formats
 *.keras

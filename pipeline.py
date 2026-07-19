@@ -6,6 +6,7 @@ separately or running the complete pipeline in order.
 """
 
 from download_dataset import download_dataset
+from eda import run_eda
 from prepare_data import prepare_dataset
 
 
@@ -28,9 +29,9 @@ def prepare_data():
 # ============================================================
 # 3. UTFORSKA DATA
 # ============================================================
-# Här ska datasetet undersökas med statistik och visualiseringar.
+# Träningsdatan undersöks med statistik och visualiseringar.
 def explore_data():
-    print("\nUtforskande dataanalys är inte implementerad än.")
+    run_eda()
 
 
 # ============================================================
