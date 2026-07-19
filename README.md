@@ -29,25 +29,22 @@ zoodle/
 │   └── settings.py          # Gemensamma sökvägar och inställningar
 ├── download_dataset.py          # Laddar ner datasetet
 ├── pipeline.py                  # Projektets terminalmeny
+├── requirements.txt            # Projektets Python-bibliotek
 ├── .gitignore
 └── README.md
 ```
 
 Mappen `data/` skapas automatiskt när datasetet laddas ner. Nedladdade datafiler sparas inte i Git.
 
-## Utvecklingsmiljö
+## Installera bibliotek
 
-Projektet använder:
+Installera projektets bibliotek med:
 
-- Conda-miljön `Tensorflow_AI`
-- Python 3.12.13
-- TensorFlow 2.18.1
-
-Aktivera miljön:
-
-```bash
-conda activate Tensorflow_AI
+```text
+python -m pip install -r requirements.txt
 ```
+
+Filen `requirements.txt` uppdateras när projektet börjar använda nya bibliotek.
 
 ## Kör projektet
 
