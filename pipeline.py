@@ -6,6 +6,7 @@ separately or running the complete pipeline in order.
 """
 
 from download_dataset import download_dataset
+from prepare_data import prepare_dataset
 
 
 # ============================================================
@@ -19,9 +20,9 @@ def download_data():
 # ============================================================
 # 2. FÖRBERED OCH RENGÖR DATA
 # ============================================================
-# Här ska bilderna kontrolleras, rengöras och delas upp i dataset.
+# Bilderna kontrolleras, rengörs och delas upp i dataset.
 def prepare_data():
-    print("\nFörberedelse av data är inte implementerad än.")
+    prepare_dataset()
 
 
 # ============================================================

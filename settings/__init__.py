@@ -1,3 +1,14 @@
 """Shared settings for the Zoodle project."""
 
-from .settings import ANIMAL_CLASSES, DATASET_URL, RAW_DATA_DIR
+from .settings import (
+    ANIMAL_CLASSES,
+    DATASET_URL,
+    IMAGE_SIZE,
+    PROCESSED_DATA_DIR,
+    RANDOM_STATE,
+    RAW_DATA_DIR,
+    SAMPLES_PER_CLASS,
+    TEST_RATIO,
+    TRAIN_RATIO,
+    VALIDATION_RATIO,
+)

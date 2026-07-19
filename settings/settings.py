@@ -8,6 +8,7 @@ from pathlib import Path
 # ============================================================
 # Rådata sparas separat så att originalfilerna inte förändras senare i flödet.
 RAW_DATA_DIR = Path("data") / "raw"
+PROCESSED_DATA_DIR = Path("data") / "processed"
 
 
 # ============================================================
@@ -67,3 +68,17 @@ ANIMAL_CLASSES = [
     "frog",
     "snake",
 ]
+
+
+# ============================================================
+# 3. DATAFÖRBEREDELSE
+# ============================================================
+# Samma seed används för urval och uppdelning så att resultatet kan återskapas.
+IMAGE_SIZE = 28
+SAMPLES_PER_CLASS = 5000
+RANDOM_STATE = 42
+
+# Datasetet delas upp i träning, validering och test.
+TRAIN_RATIO = 0.70
+VALIDATION_RATIO = 0.15
+TEST_RATIO = 0.15

@@ -174,12 +174,7 @@ PROJECT_INSTRUCTIONS.md
 IMPLEMENTATION_ROADMAP.md
 
 # Zoodle generated datasets
-data/raw/*
-!data/raw/.gitignore
-data/interim/*
-!data/interim/.gitignore
-data/processed/*
-!data/processed/.gitignore
+data/
 
 # Zoodle generated models and analysis outputs
 artifacts/*

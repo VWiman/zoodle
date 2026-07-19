@@ -8,9 +8,9 @@ from settings import ANIMAL_CLASSES, DATASET_URL, RAW_DATA_DIR
 
 
 # ============================================================
-# 1. LADDA NER DATASETET
+# 1. LADDA NED DATASETET
 # ============================================================
-# Varje djurklass laddas ner som en egen NumPy-fil.
+# Varje djurklass laddas ned som en egen NumPy-fil.
 # Filer som redan finns hoppas över så att nedladdningen kan fortsätta senare.
 def download_dataset():
     RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -33,11 +33,11 @@ def download_dataset():
         file_url = f"{DATASET_URL}/{quote(animal)}.npy"
 
         try:
-            print(f"[{number}/{len(ANIMAL_CLASSES)}] Laddar ner {animal}...")
+            print(f"[{number}/{len(ANIMAL_CLASSES)}] Laddar ned {animal}...")
             urlretrieve(file_url, file_path)
             downloaded += 1
         except (HTTPError, URLError, OSError) as error:
-            print(f"Kunde inte ladda ner {animal}: {error}")
+            print(f"Kunde inte ladda ned {animal}: {error}")
             failed.append(animal)
 
     # --------------------------------------------------------
@@ -51,7 +51,7 @@ def download_dataset():
     print(f"Misslyckade filer: {len(failed)}")
 
     if failed:
-        print("\nFiler som inte kunde laddas ner:")
+        print("\nFiler som inte kunde laddas ned:")
         for animal in failed:
             print(f"- {animal}")
 
