@@ -16,18 +16,20 @@ Projektets terminalmeny är uppdelad i följande steg:
 6. Utvärdera modellen
 7. Kör hela flödet
 
-Nedladdningen är implementerad. Övriga steg är för närvarande tomma delar som kommer att byggas vidare under projektets gång.
+Nedladdningen och dataförberedelsen är implementerade. Övriga steg är för närvarande tomma delar som kommer att byggas vidare under projektets gång.
 
 ## Projektstruktur
 
 ```text
 zoodle/
 ├── data/
-│   └── raw/                  # Nedladdade Quick, Draw!-filer
+│   ├── raw/                  # Nedladdade Quick, Draw!-filer
+│   └── processed/            # Träning, validering och test
 ├── settings/
 │   ├── __init__.py
 │   └── settings.py          # Gemensamma sökvägar och inställningar
 ├── download_dataset.py          # Laddar ner datasetet
+├── prepare_data.py              # Förbereder och delar upp datasetet
 ├── pipeline.py                  # Projektets terminalmeny
 ├── requirements.txt            # Projektets Python-bibliotek
 ├── .gitignore
@@ -61,6 +63,14 @@ python download_dataset.py
 ```
 
 Filer som redan har laddats ner hoppas över, vilket gör att nedladdningen kan fortsätta om den avbryts.
+
+När råfilerna har laddats ner kan datasetet förberedas direkt med:
+
+```bash
+python prepare_data.py
+```
+
+Det förberedda datasetet sparas som `train.npz`, `validation.npz` och `test.npz` i `data/processed`.
 
 ## Git-konventioner
 
@@ -106,4 +116,4 @@ chore: update gitignore
 
 ## Status
 
-Projektet är under utveckling och byggs stegvis. Nästa delar blir dataförberedelse, analys och modellträning.
+Projektet är under utveckling och byggs stegvis. Nästa delar blir dataanalys och modellträning.
