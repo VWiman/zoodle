@@ -16,7 +16,7 @@ Projektets terminalmeny är uppdelad i följande steg:
 6. Utvärdera modellen
 7. Kör hela flödet
 
-Nedladdningen och dataförberedelsen är implementerade. Övriga steg är för närvarande tomma delar som kommer att byggas vidare under projektets gång.
+Nedladdningen, dataförberedelsen och EDA är implementerade. Övriga steg är för närvarande tomma delar som kommer att byggas vidare under projektets gång.
 
 ## Projektstruktur
 
@@ -25,10 +25,13 @@ zoodle/
 ├── data/
 │   ├── raw/                  # Nedladdade Quick, Draw!-filer
 │   └── processed/            # Träning, validering och test
+├── output/
+│   └── eda/                  # Statistik och figurer från EDA
 ├── settings/
 │   ├── __init__.py
 │   └── settings.py          # Gemensamma sökvägar och inställningar
 ├── download_dataset.py          # Laddar ner datasetet
+├── eda.py                       # Utforskar träningsdatan
 ├── prepare_data.py              # Förbereder och delar upp datasetet
 ├── pipeline.py                  # Projektets terminalmeny
 ├── requirements.txt            # Projektets Python-bibliotek
@@ -71,6 +74,14 @@ python prepare_data.py
 ```
 
 Det förberedda datasetet sparas som `train.npz`, `validation.npz` och `test.npz` i `data/processed`.
+
+EDA kan köras direkt när dataförberedelsen är klar:
+
+```bash
+python eda.py
+```
+
+EDA använder endast träningsdatan. Statistik, tabeller och figurer sparas i `output/eda`. Tidigare EDA-filer skrivs över när steget körs igen.
 
 ## Git-konventioner
 
@@ -116,4 +127,4 @@ chore: update gitignore
 
 ## Status
 
-Projektet är under utveckling och byggs stegvis. Nästa delar blir dataanalys och modellträning.
+Projektet är under utveckling och byggs stegvis. Nästa delar blir PCA, UMAP och modellträning.

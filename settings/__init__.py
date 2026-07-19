@@ -3,6 +3,7 @@
 from .settings import (
     ANIMAL_CLASSES,
     DATASET_URL,
+    EDA_OUTPUT_DIR,
     IMAGE_SIZE,
     PROCESSED_DATA_DIR,
     RANDOM_STATE,
