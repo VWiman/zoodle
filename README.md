@@ -16,27 +16,32 @@ Projektets terminalmeny är uppdelad i följande steg:
 6. Utvärdera modellen
 7. Kör hela flödet
 
-Nedladdningen, dataförberedelsen, EDA, PCA och UMAP är implementerade. Övriga steg är för närvarande tomma delar som kommer att byggas vidare under projektets gång.
+Nedladdningen, dataförberedelsen, EDA, PCA, UMAP och modellträningen är implementerade. Modellutvärderingen kommer att byggas i nästa steg.
 
 ## Projektstruktur
 
 ```text
 zoodle/
+├── artifacts/
+│   └── training/             # Bästa modellen från varje träningskörning
 ├── data/
 │   ├── raw/                  # Nedladdade Quick, Draw!-filer
 │   └── processed/            # Träning, validering och test
 ├── output/
 │   ├── eda/                  # Statistik och figurer från EDA
 │   ├── pca/                  # Resultat från PCA
+│   ├── training/             # Historik från varje träningskörning
 │   └── umap/                 # Resultat från UMAP
 ├── settings/
 │   ├── __init__.py
 │   └── settings.py          # Gemensamma sökvägar och inställningar
 ├── download_dataset.py          # Laddar ner datasetet
 ├── eda.py                       # Utforskar träningsdatan
+├── model.py                     # Bygger och kompilerar CNN-modellen
 ├── pca_umap.py                  # Analyserar bilder med PCA och UMAP
 ├── prepare_data.py              # Förbereder och delar upp datasetet
 ├── pipeline.py                  # Projektets terminalmeny
+├── training.py                  # Tränar och sparar CNN-modellen
 ├── requirements.txt            # Projektets Python-bibliotek
 ├── .gitignore
 └── README.md
@@ -94,6 +99,16 @@ python pca_umap.py
 
 PCA-resultatet sparas i `output/pca` och UMAP-resultatet sparas i `output/umap`. Båda analyserna använder balanserade urval från träningsdatan och skriver över tidigare filer.
 
+CNN-modellen kan tränas direkt med:
+
+```bash
+python training.py
+```
+
+Varje träningskörning får ett eget ID baserat på starttiden. Den bästa modellen sparas i en egen mapp under `artifacts/training` och träningshistoriken sparas i motsvarande mapp under `output/training`.
+
+Dataaugmentering är avstängd som standard. Augmentering, dropout och övriga träningsinställningar kan justeras i `settings/settings.py` inför en ny jämförelsekörning.
+
 ## Git-konventioner
 
 ### Branch-namn
@@ -138,4 +153,4 @@ chore: update gitignore
 
 ## Status
 
-Projektet är under utveckling och byggs stegvis. Nästa del blir modellträning.
+Projektet är under utveckling och byggs stegvis. Nästa del blir modellutvärdering.
