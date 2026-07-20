@@ -9,6 +9,7 @@ from download_dataset import download_dataset
 from eda import run_eda
 from pca_umap import run_pca_umap
 from prepare_data import prepare_dataset
+from training import train_model as train_cnn_model
 
 
 # ============================================================
@@ -46,9 +47,9 @@ def analyze_dimensions():
 # ============================================================
 # 5. TRÄNA MODELLEN
 # ============================================================
-# Här ska CNN-modellen byggas och tränas.
+# CNN-modellen tränas och varje körning sparas i en egen mapp.
 def train_model():
-    print("\nModellträning är inte implementerad än.")
+    train_cnn_model()
 
 
 # ============================================================

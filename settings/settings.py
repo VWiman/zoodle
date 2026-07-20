@@ -12,6 +12,8 @@ PROCESSED_DATA_DIR = Path("data") / "processed"
 EDA_OUTPUT_DIR = Path("output") / "eda"
 PCA_OUTPUT_DIR = Path("output") / "pca"
 UMAP_OUTPUT_DIR = Path("output") / "umap"
+TRAINING_OUTPUT_DIR = Path("output") / "training"
+MODEL_OUTPUT_DIR = Path("artifacts") / "training"
 
 
 # ============================================================
@@ -158,3 +160,18 @@ UMAP_SAMPLES_PER_CLASS = 250
 PCA_VARIANCE = 0.95
 UMAP_N_NEIGHBORS = 15
 UMAP_MIN_DIST = 0.1
+
+
+# ============================================================
+# 5. MODELLTRÄNING
+# ============================================================
+# Träningsinställningarna kan ändras mellan körningar för att jämföra resultat.
+BATCH_SIZE = 128
+EPOCHS = 30
+LEARNING_RATE = 1e-4
+EARLY_STOPPING_PATIENCE = 5
+DROPOUT_RATE = 0.25
+USE_DATA_AUGMENTATION = True
+AUGMENTATION_ROTATION = 0.08
+AUGMENTATION_TRANSLATION = 0.1
+AUGMENTATION_ZOOM = 0.1
