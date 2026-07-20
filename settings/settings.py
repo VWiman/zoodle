@@ -14,6 +14,7 @@ PCA_OUTPUT_DIR = Path("output") / "pca"
 UMAP_OUTPUT_DIR = Path("output") / "umap"
 TRAINING_OUTPUT_DIR = Path("output") / "training"
 MODEL_OUTPUT_DIR = Path("artifacts") / "training"
+EVALUATION_OUTPUT_DIR = Path("output") / "evaluation"
 
 
 # ============================================================
@@ -167,11 +168,19 @@ UMAP_MIN_DIST = 0.1
 # ============================================================
 # Träningsinställningarna kan ändras mellan körningar för att jämföra resultat.
 BATCH_SIZE = 128
-EPOCHS = 30
+EPOCHS = 60
 LEARNING_RATE = 1e-4
 EARLY_STOPPING_PATIENCE = 5
-DROPOUT_RATE = 0.25
+DROPOUT_RATE = 0.3
 USE_DATA_AUGMENTATION = True
 AUGMENTATION_ROTATION = 0.08
 AUGMENTATION_TRANSLATION = 0.1
 AUGMENTATION_ZOOM = 0.1
+
+
+# ============================================================
+# 6. MODELLUTVÄRDERING
+# ============================================================
+# De vanligaste förväxlingarna och tydliga felexempel lyfts fram i resultatet.
+TOP_CONFUSIONS = 15
+MISCLASSIFIED_EXAMPLES = 16

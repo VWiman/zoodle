@@ -7,6 +7,7 @@ separately or running the complete pipeline in order.
 
 from download_dataset import download_dataset
 from eda import run_eda
+from evaluation import evaluate_model as evaluate_cnn_model
 from pca_umap import run_pca_umap
 from prepare_data import prepare_dataset
 from training import train_model as train_cnn_model
@@ -55,9 +56,9 @@ def train_model():
 # ============================================================
 # 6. UTVÄRDERA MODELLEN
 # ============================================================
-# Här ska den tränade modellen utvärderas och resultatet sparas.
+# Användaren väljer en checkpoint som utvärderas mot testdatan.
 def evaluate_model():
-    print("\nModellutvärdering är inte implementerad än.")
+    evaluate_cnn_model()
 
 
 # ============================================================

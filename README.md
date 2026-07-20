@@ -16,7 +16,7 @@ Projektets terminalmeny är uppdelad i följande steg:
 6. Utvärdera modellen
 7. Kör hela flödet
 
-Nedladdningen, dataförberedelsen, EDA, PCA, UMAP och modellträningen är implementerade. Modellutvärderingen kommer att byggas i nästa steg.
+Nedladdningen, dataförberedelsen, EDA, PCA, UMAP, modellträningen och modellutvärderingen är implementerade.
 
 ## Projektstruktur
 
@@ -29,6 +29,7 @@ zoodle/
 │   └── processed/            # Träning, validering och test
 ├── output/
 │   ├── eda/                  # Statistik och figurer från EDA
+│   ├── evaluation/           # Resultat från modellutvärderingar
 │   ├── pca/                  # Resultat från PCA
 │   ├── training/             # Historik från varje träningskörning
 │   └── umap/                 # Resultat från UMAP
@@ -37,6 +38,7 @@ zoodle/
 │   └── settings.py          # Gemensamma sökvägar och inställningar
 ├── download_dataset.py          # Laddar ner datasetet
 ├── eda.py                       # Utforskar träningsdatan
+├── evaluation.py                # Utvärderar en vald modell på testdatan
 ├── model.py                     # Bygger och kompilerar CNN-modellen
 ├── pca_umap.py                  # Analyserar bilder med PCA och UMAP
 ├── prepare_data.py              # Förbereder och delar upp datasetet
@@ -107,7 +109,17 @@ python training.py
 
 Varje träningskörning får ett eget ID baserat på starttiden. Den bästa modellen sparas i en egen mapp under `artifacts/training` och träningshistoriken sparas i motsvarande mapp under `output/training`.
 
-Dataaugmentering är avstängd som standard. Augmentering, dropout och övriga träningsinställningar kan justeras i `settings/settings.py` inför en ny jämförelsekörning.
+Dataaugmentering, dropout och övriga träningsinställningar kan justeras i `settings/settings.py` inför en ny jämförelsekörning.
+
+En tränad modell kan utvärderas direkt med:
+
+```bash
+python evaluation.py
+```
+
+Programmet visar tillgängliga checkpoints tillsammans med kort träningsinformation. Den valda modellen utvärderas mot testdatan och varje utvärdering sparas i en unik mapp under `output/evaluation/<checkpoint_id>`.
+
+Resultatet innehåller sammanfattande testmått, klassrapport, förväxlingsmatris, klassernas F1-resultat, vanliga förväxlingar och tydliga exempel på felklassificeringar.
 
 ## Git-konventioner
 
@@ -153,4 +165,4 @@ chore: update gitignore
 
 ## Status
 
-Projektet är under utveckling och byggs stegvis. Nästa del blir modellutvärdering.
+Projektet är under utveckling och byggs stegvis. Pipeline-steg 1–6 är implementerade.
