@@ -25,16 +25,38 @@ from settings import (
     EPOCHS,
     IMAGE_SIZE,
     LEARNING_RATE,
+    MIN_LEARNING_RATE,
     MODEL_OUTPUT_DIR,
     PROCESSED_DATA_DIR,
     RANDOM_STATE,
+    REDUCE_LR_FACTOR,
+    REDUCE_LR_PATIENCE,
     TRAINING_OUTPUT_DIR,
     USE_DATA_AUGMENTATION,
+    USE_EARLY_STOPPING,
+    USE_REDUCE_LR_ON_PLATEAU,
 )
 
 
 # ============================================================
-# 1. TRÄNA MODELLEN
+# 1. REGISTRERA LEARNING RATE
+# ============================================================
+# Learning rate sparas vid början av varje epok så att historiken visar
+# det värde som faktiskt används under epoken.
+class _LearningRateHistory(tf.keras.callbacks.Callback):
+    def __init__(self) -> None:
+        super().__init__()
+        self.learning_rates = []
+
+    def on_epoch_begin(self, epoch, logs=None) -> None:
+        learning_rate = tf.keras.backend.get_value(
+            self.model.optimizer.learning_rate
+        )
+        self.learning_rates.append(float(learning_rate))
+
+
+# ============================================================
+# 2. TRÄNA MODELLEN
 # ============================================================
 # Tränings- och valideringsdata används här. Testdatan sparas till utvärderingen.
 def train_model() -> bool:
@@ -86,20 +108,7 @@ def train_model() -> bool:
     model_path = model_run_dir / "best_model.keras"
     model = build_cnn_model(USE_DATA_AUGMENTATION)
 
-    callbacks = [
-        tf.keras.callbacks.EarlyStopping(
-            monitor="val_loss",
-            patience=EARLY_STOPPING_PATIENCE,
-            restore_best_weights=True,
-            verbose=1,
-        ),
-        tf.keras.callbacks.ModelCheckpoint(
-            filepath=model_path,
-            monitor="val_loss",
-            save_best_only=True,
-            verbose=1,
-        ),
-    ]
+    callbacks, learning_rate_history = _create_callbacks(model_path)
 
     print("\n========================================")
     print("MODELLTRÄNING STARTAR")
@@ -108,6 +117,11 @@ def train_model() -> bool:
     print(f"Träningsbilder: {len(train_images)}")
     print(f"Valideringsbilder: {len(validation_images)}")
     print(f"Dataaugmentering: {'Ja' if USE_DATA_AUGMENTATION else 'Nej'}")
+    print(f"Early stopping: {'Ja' if USE_EARLY_STOPPING else 'Nej'}")
+    print(
+        "ReduceLROnPlateau: "
+        f"{'Ja' if USE_REDUCE_LR_ON_PLATEAU else 'Nej'}"
+    )
     print(f"Maximalt antal epoker: {EPOCHS}")
 
     # --------------------------------------------------------
@@ -134,6 +148,7 @@ def train_model() -> bool:
             "accuracy": history.history["accuracy"],
             "val_loss": history.history["val_loss"],
             "val_accuracy": history.history["val_accuracy"],
+            "learning_rate": learning_rate_history.learning_rates,
         }
     )
     history_table.to_csv(output_run_dir / "history.csv", index=False)
@@ -201,7 +216,51 @@ def train_model() -> bool:
 
 
 # ============================================================
-# 2. LADDA DATASET
+# 3. SKAPA CALLBACKS
+# ============================================================
+# Callbacksen läggs till utifrån inställningarna.
+# Bästa modellen sparas alltid, oavsett vilka callbacks som är aktiva.
+def _create_callbacks(
+    model_path: Path,
+) -> tuple[list[tf.keras.callbacks.Callback], _LearningRateHistory]:
+    learning_rate_history = _LearningRateHistory()
+    callbacks = [learning_rate_history]
+
+    if USE_EARLY_STOPPING:
+        callbacks.append(
+            tf.keras.callbacks.EarlyStopping(
+                monitor="val_loss",
+                patience=EARLY_STOPPING_PATIENCE,
+                restore_best_weights=True,
+                verbose=1,
+            )
+        )
+
+    if USE_REDUCE_LR_ON_PLATEAU:
+        callbacks.append(
+            tf.keras.callbacks.ReduceLROnPlateau(
+                monitor="val_loss",
+                factor=REDUCE_LR_FACTOR,
+                patience=REDUCE_LR_PATIENCE,
+                min_lr=MIN_LEARNING_RATE,
+                verbose=1,
+            )
+        )
+
+    callbacks.append(
+        tf.keras.callbacks.ModelCheckpoint(
+            filepath=model_path,
+            monitor="val_loss",
+            save_best_only=True,
+            verbose=1,
+        )
+    )
+
+    return callbacks, learning_rate_history
+
+
+# ============================================================
+# 4. LADDA DATASET
 # ============================================================
 # Varje split kontrolleras innan träningen och innan nya resultatmappar skapas.
 def _load_dataset(
@@ -267,7 +326,7 @@ def _load_dataset(
 
 
 # ============================================================
-# 3. SKAPA KÖRNINGS-ID
+# 5. SKAPA KÖRNINGS-ID
 # ============================================================
 # Tidsstämpeln gör att tidigare modeller och träningsresultat behålls.
 def _create_run_id() -> str:
@@ -285,11 +344,11 @@ def _create_run_id() -> str:
 
 
 # ============================================================
-# 4. SPARA TRÄNINGSHISTORIK
+# 6. SPARA TRÄNINGSHISTORIK
 # ============================================================
 # Tränings- och valideringskurvorna sparas tillsammans för enkel jämförelse.
 def _save_training_figure(history_table: pd.DataFrame, output_path: Path) -> None:
-    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
     axes[0].plot(history_table["epoch"], history_table["loss"], label="Träning")
     axes[0].plot(
@@ -317,6 +376,17 @@ def _save_training_figure(history_table: pd.DataFrame, output_path: Path) -> Non
     axes[1].set_ylabel("Träffsäkerhet")
     axes[1].legend()
 
+    axes[2].step(
+        history_table["epoch"],
+        history_table["learning_rate"],
+        where="post",
+        color="#54A24B",
+    )
+    axes[2].set_title("Inlärningshastighet per epok")
+    axes[2].set_xlabel("Epok")
+    axes[2].set_ylabel("Inlärningshastighet")
+    axes[2].set_yscale("log")
+
     fig.suptitle("Träningshistorik för CNN-modellen")
     fig.tight_layout()
     fig.savefig(output_path, dpi=150)
@@ -324,7 +394,7 @@ def _save_training_figure(history_table: pd.DataFrame, output_path: Path) -> Non
 
 
 # ============================================================
-# 5. SKAPA CLASSIFICATION REPORT
+# 7. SKAPA CLASSIFICATION REPORT
 # ============================================================
 # Rapporten visar precision, recall och F1 för varje klass i valideringsdatan.
 def create_classification_report(
@@ -395,7 +465,7 @@ def _create_classification_report(
 
 
 # ============================================================
-# 6. SPARA SAMMANFATTNING
+# 8. SPARA SAMMANFATTNING
 # ============================================================
 # Sammanfattningen dokumenterar inställningarna och resultatet för varje körning.
 def _save_summary(
@@ -426,8 +496,17 @@ def _save_summary(
         f"Batchstorlek: {BATCH_SIZE}",
         f"Maximalt antal epoker: {EPOCHS}",
         f"Genomförda epoker: {len(history_table)}",
+        f"Early stopping: {'Ja' if USE_EARLY_STOPPING else 'Nej'}",
         f"Tålamod för early stopping: {EARLY_STOPPING_PATIENCE}",
-        f"Inlärningshastighet: {LEARNING_RATE}",
+        f"ReduceLROnPlateau: {'Ja' if USE_REDUCE_LR_ON_PLATEAU else 'Nej'}",
+        f"Tålamod för ReduceLROnPlateau: {REDUCE_LR_PATIENCE}",
+        f"Faktor för ReduceLROnPlateau: {REDUCE_LR_FACTOR}",
+        f"Minsta learning rate: {MIN_LEARNING_RATE}",
+        f"Initial learning rate: {LEARNING_RATE}",
+        f"Learning rate under sista epoken: "
+        f"{history_table.iloc[-1]['learning_rate']:.8f}",
+        f"Learning rate under bästa epoken: "
+        f"{history_table.loc[best_index, 'learning_rate']:.8f}",
         f"Bästa epok: {best_index + 1}",
         f"Bästa valideringsförlust: {history_table.loc[best_index, 'val_loss']:.4f}",
         f"Valideringsträffsäkerhet vid bästa epok: "
@@ -443,7 +522,7 @@ def _save_summary(
 
 
 # ============================================================
-# 7. STARTA MODELLTRÄNINGEN
+# 9. STARTA MODELLTRÄNINGEN
 # ============================================================
 # Funktionen kan köras direkt eller genom projektets pipeline-meny.
 if __name__ == "__main__":
