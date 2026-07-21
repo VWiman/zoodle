@@ -7,7 +7,13 @@ import matplotlib
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import (
+    auc,
+    confusion_matrix,
+    precision_recall_fscore_support,
+    roc_curve,
+)
+from sklearn.preprocessing import label_binarize
 
 matplotlib.use("Agg")
 
@@ -87,10 +93,11 @@ def evaluate_model() -> bool:
     # --------------------------------------------------------
     # 1.2 Beräkna klassresultat och förväxlingar
     # --------------------------------------------------------
-    report, report_table = _create_classification_report(
+    class_metrics, report_table = _create_class_metrics(
         test_labels,
         predicted_labels,
     )
+    roc_table, roc_curves = _create_roc_results(test_labels, probabilities)
     confusion_counts = confusion_matrix(
         test_labels,
         predicted_labels,
@@ -116,7 +123,7 @@ def evaluate_model() -> bool:
     output_dir = EVALUATION_OUTPUT_DIR / checkpoint_id / evaluation_id
     output_dir.mkdir(parents=True)
 
-    report_table.to_csv(output_dir / "classification_report.csv", index=False)
+    roc_table.to_csv(output_dir / "roc_auc.csv", index=False)
     top_confusions.to_csv(output_dir / "top_confusions.csv", index=False)
     predictions.to_csv(output_dir / "predictions.csv", index=False)
 
@@ -141,6 +148,14 @@ def evaluate_model() -> bool:
         report_table,
         output_dir / "class_performance.png",
     )
+    _save_roc_curve(
+        roc_curves,
+        output_dir / "roc_curve.png",
+    )
+    _save_roc_auc_per_class(
+        roc_table,
+        output_dir / "roc_auc_per_class.png",
+    )
     _save_top_confusions(
         top_confusions,
         output_dir / "top_confusions.png",
@@ -162,8 +177,10 @@ def evaluate_model() -> bool:
         test_loss=test_loss,
         test_accuracy=test_accuracy,
         correct_count=int(correct.sum()),
-        report=report,
+        class_metrics=class_metrics,
         report_table=report_table,
+        roc_table=roc_table,
+        roc_curves=roc_curves,
         output_path=output_dir / "summary.txt",
     )
 
@@ -172,7 +189,9 @@ def evaluate_model() -> bool:
     print("========================================")
     print(f"Testförlust: {test_loss:.4f}")
     print(f"Testträffsäkerhet: {test_accuracy:.2%}")
-    print(f"Makro-F1: {report['macro avg']['f1-score']:.4f}")
+    print(f"Makro-F1: {class_metrics['macro_f1']:.4f}")
+    print(f"Makro ROC-AUC: {roc_curves['macro_auc']:.4f}")
+    print(f"Mikro ROC-AUC: {roc_curves['micro_auc']:.4f}")
     print(f"Resultat: {output_dir}")
 
     return True
@@ -365,58 +384,139 @@ def _load_model(model_path: Path) -> tf.keras.Model | None:
 
 
 # ============================================================
-# 6. SKAPA KLASSRAPPORT
+# 6. BERÄKNA KLASSMÅTT
 # ============================================================
-# Rapporten innehåller varje klass samt sammanfattande macro- och weighted-mått.
-def _create_classification_report(
+# Precision, recall och F1 behålls som utvärderingsmått utan classification report.
+def _create_class_metrics(
     true_labels: np.ndarray,
     predicted_labels: np.ndarray,
 ) -> tuple[dict, pd.DataFrame]:
-    report = classification_report(
+    labels = np.arange(len(ANIMAL_CLASSES))
+    precision, recall, f1_score, support = precision_recall_fscore_support(
         true_labels,
         predicted_labels,
-        labels=np.arange(len(ANIMAL_CLASSES)),
-        target_names=ANIMAL_CLASSES,
-        output_dict=True,
+        labels=labels,
         zero_division=0,
     )
+    macro_precision, macro_recall, macro_f1, _ = precision_recall_fscore_support(
+        true_labels,
+        predicted_labels,
+        labels=labels,
+        average="macro",
+        zero_division=0,
+    )
+    weighted_precision, weighted_recall, weighted_f1, _ = (
+        precision_recall_fscore_support(
+            true_labels,
+            predicted_labels,
+            labels=labels,
+            average="weighted",
+            zero_division=0,
+        )
+    )
 
+    report_table = pd.DataFrame(
+        {
+            "label": labels,
+            "animal": ANIMAL_CLASSES,
+            "precision": precision,
+            "recall": recall,
+            "f1_score": f1_score,
+            "support": support.astype(int),
+        }
+    )
+    class_metrics = {
+        "macro_precision": macro_precision,
+        "macro_recall": macro_recall,
+        "macro_f1": macro_f1,
+        "weighted_precision": weighted_precision,
+        "weighted_recall": weighted_recall,
+        "weighted_f1": weighted_f1,
+    }
+
+    return class_metrics, report_table
+
+
+# ============================================================
+# 7. BERÄKNA ROC
+# ============================================================
+# Varje klass behandlas som positiv mot projektets övriga djurklasser.
+def _create_roc_results(
+    true_labels: np.ndarray,
+    probabilities: np.ndarray,
+) -> tuple[pd.DataFrame, dict]:
+    binary_labels = label_binarize(
+        true_labels,
+        classes=np.arange(len(ANIMAL_CLASSES)),
+    )
+    class_curves = []
     rows = []
 
     for label, animal in enumerate(ANIMAL_CLASSES):
-        metrics = report[animal]
+        false_positive_rate, true_positive_rate, _ = roc_curve(
+            binary_labels[:, label],
+            probabilities[:, label],
+        )
+        class_auc = auc(false_positive_rate, true_positive_rate)
+        class_curves.append((false_positive_rate, true_positive_rate))
         rows.append(
             {
                 "label": label,
                 "animal": animal,
-                "precision": metrics["precision"],
-                "recall": metrics["recall"],
-                "f1_score": metrics["f1-score"],
-                "support": int(metrics["support"]),
+                "roc_auc": class_auc,
             }
         )
 
-    for report_key, row_name in [
-        ("macro avg", "macro_average"),
-        ("weighted avg", "weighted_average"),
-    ]:
-        metrics = report[report_key]
-        rows.append(
+    micro_fpr, micro_tpr, _ = roc_curve(
+        binary_labels.ravel(),
+        probabilities.ravel(),
+    )
+    micro_auc = auc(micro_fpr, micro_tpr)
+
+    all_false_positive_rates = np.unique(
+        np.concatenate([curve[0] for curve in class_curves])
+    )
+    mean_true_positive_rate = np.zeros_like(all_false_positive_rates)
+
+    for false_positive_rate, true_positive_rate in class_curves:
+        mean_true_positive_rate += np.interp(
+            all_false_positive_rates,
+            false_positive_rate,
+            true_positive_rate,
+        )
+
+    mean_true_positive_rate /= len(ANIMAL_CLASSES)
+    macro_auc = auc(all_false_positive_rates, mean_true_positive_rate)
+
+    rows.extend(
+        [
             {
                 "label": "",
-                "animal": row_name,
-                "precision": metrics["precision"],
-                "recall": metrics["recall"],
-                "f1_score": metrics["f1-score"],
-                "support": int(metrics["support"]),
-            }
-        )
+                "animal": "micro_average",
+                "roc_auc": micro_auc,
+            },
+            {
+                "label": "",
+                "animal": "macro_average",
+                "roc_auc": macro_auc,
+            },
+        ]
+    )
 
-    return report, pd.DataFrame(rows)
+    roc_curves = {
+        "micro_fpr": micro_fpr,
+        "micro_tpr": micro_tpr,
+        "micro_auc": micro_auc,
+        "macro_fpr": all_false_positive_rates,
+        "macro_tpr": mean_true_positive_rate,
+        "macro_auc": macro_auc,
+    }
+
+    return pd.DataFrame(rows), roc_curves
 
 
 # ============================================================
-# 7. HITTA VANLIGA FÖRVÄXLINGAR
+# 8. HITTA VANLIGA FÖRVÄXLINGAR
 # ============================================================
 # Diagonalen tas bort så att tabellen endast visar felaktiga prediktioner.
 def _create_top_confusions(confusion_counts: np.ndarray) -> pd.DataFrame:
@@ -461,7 +561,7 @@ def _create_top_confusions(confusion_counts: np.ndarray) -> pd.DataFrame:
 
 
 # ============================================================
-# 8. SKAPA UTVÄRDERINGS-ID
+# 9. SKAPA UTVÄRDERINGS-ID
 # ============================================================
 # Varje körning sparas separat under checkpointens egen mapp.
 def _create_evaluation_id(checkpoint_id: str) -> str:
@@ -479,7 +579,7 @@ def _create_evaluation_id(checkpoint_id: str) -> str:
 
 
 # ============================================================
-# 9. SPARA CONFUSION MATRIX
+# 10. SPARA CONFUSION MATRIX
 # ============================================================
 # Matrisen normaliseras per verklig klass och visas utan text i varje ruta.
 def _save_confusion_matrix(
@@ -518,7 +618,7 @@ def _save_confusion_matrix(
 
 
 # ============================================================
-# 10. SPARA KLASSRESULTAT
+# 11. SPARA KLASSRESULTAT
 # ============================================================
 # Klasserna sorteras efter F1 så att styrkor och svagheter syns tydligt.
 def _save_class_performance(
@@ -541,7 +641,65 @@ def _save_class_performance(
 
 
 # ============================================================
-# 11. SPARA VANLIGA FÖRVÄXLINGAR
+# 12. SPARA ROC-KURVOR
+# ============================================================
+# Mikro- och makrogenomsnitt visas utan separata kurvor för alla 48 klasser.
+def _save_roc_curve(roc_curves: dict, output_path: Path) -> None:
+    fig, ax = plt.subplots(figsize=(9, 7))
+    ax.plot(
+        roc_curves["micro_fpr"],
+        roc_curves["micro_tpr"],
+        color="#4C78A8",
+        linewidth=2,
+        label=f"Mikrogenomsnitt (AUC {roc_curves['micro_auc']:.4f})",
+    )
+    ax.plot(
+        roc_curves["macro_fpr"],
+        roc_curves["macro_tpr"],
+        color="#F58518",
+        linewidth=2,
+        label=f"Makrogenomsnitt (AUC {roc_curves['macro_auc']:.4f})",
+    )
+    ax.plot([0, 1], [0, 1], color="#777777", linestyle="--", label="Slumpnivå")
+    ax.set_title("ROC-kurvor för testdatan")
+    ax.set_xlabel("Andel falskt positiva")
+    ax.set_ylabel("Andel sant positiva")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1.01)
+    ax.grid(alpha=0.25)
+    ax.legend(loc="lower right")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+# ============================================================
+# 13. SPARA ROC-AUC PER KLASS
+# ============================================================
+# Det sorterade diagrammet visar tydligt vilka djurklasser som är svagast.
+def _save_roc_auc_per_class(
+    roc_table: pd.DataFrame,
+    output_path: Path,
+) -> None:
+    class_rows = roc_table[roc_table["label"] != ""].copy()
+    class_rows = class_rows.sort_values("roc_auc")
+
+    fig, ax = plt.subplots(figsize=(11, 14))
+    ax.barh(class_rows["animal"], class_rows["roc_auc"], color="#54A24B")
+    ax.axvline(0.5, color="#777777", linestyle="--", label="Slumpnivå")
+    ax.set_title("ROC-AUC per djurklass")
+    ax.set_xlabel("ROC-AUC")
+    ax.set_ylabel("Djurklass")
+    ax.set_xlim(0, 1)
+    ax.grid(axis="x", alpha=0.25)
+    ax.legend(loc="lower right")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+# ============================================================
+# 14. SPARA VANLIGA FÖRVÄXLINGAR
 # ============================================================
 # Diagrammet visar riktningen från verklig klass till modellens gissning.
 def _save_top_confusions(
@@ -571,7 +729,7 @@ def _save_top_confusions(
 
 
 # ============================================================
-# 12. SPARA FELKLASSIFICERADE EXEMPEL
+# 15. SPARA FELKLASSIFICERADE EXEMPEL
 # ============================================================
 # De säkraste felaktiga gissningarna visar var modellen är mest övertygad men har fel.
 def _save_misclassified_examples(
@@ -621,7 +779,7 @@ def _save_misclassified_examples(
 
 
 # ============================================================
-# 13. SPARA SAMMANFATTNING
+# 16. SPARA SAMMANFATTNING
 # ============================================================
 # Sammanfattningen samlar de viktigaste testresultaten i ett läsbart format.
 def _save_summary(
@@ -632,15 +790,18 @@ def _save_summary(
     test_loss: float,
     test_accuracy: float,
     correct_count: int,
-    report: dict,
+    class_metrics: dict,
     report_table: pd.DataFrame,
+    roc_table: pd.DataFrame,
+    roc_curves: dict,
     output_path: Path,
 ) -> None:
     class_rows = report_table[report_table["label"] != ""]
     best_class = class_rows.loc[class_rows["f1_score"].idxmax()]
     weakest_class = class_rows.loc[class_rows["f1_score"].idxmin()]
-    macro_metrics = report["macro avg"]
-    weighted_metrics = report["weighted avg"]
+    roc_class_rows = roc_table[roc_table["label"] != ""]
+    best_roc_class = roc_class_rows.loc[roc_class_rows["roc_auc"].idxmax()]
+    weakest_roc_class = roc_class_rows.loc[roc_class_rows["roc_auc"].idxmin()]
 
     summary_lines = [
         "MODELLUTVÄRDERING - ZOODLE",
@@ -654,21 +815,27 @@ def _save_summary(
         f"Felklassificerade: {test_size - correct_count}",
         f"Testförlust: {test_loss:.4f}",
         f"Testträffsäkerhet: {test_accuracy:.4f}",
-        f"Makroprecision: {macro_metrics['precision']:.4f}",
-        f"Makro-recall: {macro_metrics['recall']:.4f}",
-        f"Makro-F1: {macro_metrics['f1-score']:.4f}",
-        f"Viktad F1: {weighted_metrics['f1-score']:.4f}",
+        f"Makroprecision: {class_metrics['macro_precision']:.4f}",
+        f"Makro-recall: {class_metrics['macro_recall']:.4f}",
+        f"Makro-F1: {class_metrics['macro_f1']:.4f}",
+        f"Viktad F1: {class_metrics['weighted_f1']:.4f}",
+        f"Makro ROC-AUC: {roc_curves['macro_auc']:.4f}",
+        f"Mikro ROC-AUC: {roc_curves['micro_auc']:.4f}",
         f"Starkaste klass: {best_class['animal']} "
         f"(F1 {best_class['f1_score']:.4f})",
         f"Svagaste klass: {weakest_class['animal']} "
         f"(F1 {weakest_class['f1_score']:.4f})",
+        f"Starkaste ROC-AUC-klass: {best_roc_class['animal']} "
+        f"({best_roc_class['roc_auc']:.4f})",
+        f"Svagaste ROC-AUC-klass: {weakest_roc_class['animal']} "
+        f"({weakest_roc_class['roc_auc']:.4f})",
     ]
 
     output_path.write_text("\n".join(summary_lines), encoding="utf-8")
 
 
 # ============================================================
-# 14. STARTA MODELLUTVÄRDERINGEN
+# 17. STARTA MODELLUTVÄRDERINGEN
 # ============================================================
 # Funktionen kan köras direkt eller genom projektets pipeline-meny.
 if __name__ == "__main__":

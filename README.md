@@ -107,7 +107,7 @@ CNN-modellen kan tränas direkt med:
 python training.py
 ```
 
-Varje träningskörning får ett eget ID baserat på starttiden. Den bästa modellen sparas i en egen mapp under `artifacts/training` och träningshistoriken sparas i motsvarande mapp under `output/training`.
+Varje träningskörning får ett eget ID baserat på starttiden. Den bästa modellen sparas i en egen mapp under `artifacts/training` och träningshistoriken sparas i motsvarande mapp under `output/training`. När träningen är klar skrivs en classification report för valideringsdatan ut i terminalen och sparas som text och CSV.
 
 Dataaugmentering, dropout och övriga träningsinställningar kan justeras i `settings/settings.py` inför en ny jämförelsekörning.
 
@@ -119,7 +119,7 @@ python evaluation.py
 
 Programmet visar tillgängliga checkpoints tillsammans med kort träningsinformation. Den valda modellen utvärderas mot testdatan och varje utvärdering sparas i en unik mapp under `output/evaluation/<checkpoint_id>`.
 
-Resultatet innehåller sammanfattande testmått, klassrapport, förväxlingsmatris, klassernas F1-resultat, vanliga förväxlingar och tydliga exempel på felklassificeringar.
+Resultatet innehåller sammanfattande testmått, förväxlingsmatris, klassernas F1-resultat, ROC-AUC, vanliga förväxlingar och tydliga exempel på felklassificeringar. ROC visas som mikro- och makrokurvor samt ett sorterat AUC-diagram för alla djurklasser.
 
 ## Git-konventioner
 
