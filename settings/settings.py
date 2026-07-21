@@ -167,10 +167,15 @@ UMAP_MIN_DIST = 0.1
 # 5. MODELLTRÄNING
 # ============================================================
 # Träningsinställningarna kan ändras mellan körningar för att jämföra resultat.
-BATCH_SIZE = 128
-EPOCHS = 60
+BATCH_SIZE = 64
+EPOCHS = 45
 LEARNING_RATE = 1e-4
+USE_EARLY_STOPPING = True
 EARLY_STOPPING_PATIENCE = 5
+USE_REDUCE_LR_ON_PLATEAU = True
+REDUCE_LR_PATIENCE = 2
+REDUCE_LR_FACTOR = 0.5
+MIN_LEARNING_RATE = 1e-6
 DROPOUT_RATE = 0.3
 USE_DATA_AUGMENTATION = True
 AUGMENTATION_ROTATION = 0.08

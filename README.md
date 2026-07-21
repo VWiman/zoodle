@@ -109,7 +109,7 @@ python training.py
 
 Varje träningskörning får ett eget ID baserat på starttiden. Den bästa modellen sparas i en egen mapp under `artifacts/training` och träningshistoriken sparas i motsvarande mapp under `output/training`. När träningen är klar skrivs en classification report för valideringsdatan ut i terminalen och sparas som text och CSV.
 
-Dataaugmentering, dropout och övriga träningsinställningar kan justeras i `settings/settings.py` inför en ny jämförelsekörning.
+Dataaugmentering, dropout, early stopping och automatisk sänkning av learning rate kan justeras i `settings/settings.py` inför en ny jämförelsekörning. Learning rate för varje epok sparas i träningshistoriken och visas i resultatfiguren.
 
 En tränad modell kan utvärderas direkt med:
 
