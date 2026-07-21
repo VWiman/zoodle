@@ -143,7 +143,7 @@ ANIMAL_GROUPS = {
 # ============================================================
 # Samma seed används för urval och uppdelning så att resultatet kan återskapas.
 IMAGE_SIZE = 28
-SAMPLES_PER_CLASS = 10000
+SAMPLES_PER_CLASS = 20000
 RANDOM_STATE = 42
 
 # Datasetet delas upp i träning, validering och test.
@@ -167,7 +167,7 @@ UMAP_MIN_DIST = 0.1
 # 5. MODELLTRÄNING
 # ============================================================
 # Träningsinställningarna kan ändras mellan körningar för att jämföra resultat.
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 EPOCHS = 45
 LEARNING_RATE = 1e-4
 USE_EARLY_STOPPING = True
