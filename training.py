@@ -7,6 +7,7 @@ import matplotlib
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from sklearn.metrics import classification_report as sklearn_classification_report
 
 matplotlib.use("Agg")
 
@@ -139,6 +140,44 @@ def train_model() -> bool:
 
     best_index = int(history_table["val_loss"].idxmin())
     _save_training_figure(history_table, output_run_dir / "training_history.png")
+
+    # --------------------------------------------------------
+    # 1.5 Skapa classification report för valideringsdatan
+    # --------------------------------------------------------
+    try:
+        best_model = tf.keras.models.load_model(model_path, compile=False)
+        validation_probabilities = best_model.predict(
+            validation_images,
+            batch_size=BATCH_SIZE,
+            verbose=1,
+        )
+    except (OSError, ValueError, tf.errors.OpError) as error:
+        print(f"\nClassification report kunde inte skapas: {error}")
+        return False
+
+    expected_shape = (len(validation_images), len(ANIMAL_CLASSES))
+    if validation_probabilities.shape != expected_shape or not np.all(
+        np.isfinite(validation_probabilities)
+    ):
+        print(
+            f"\nModellen gav ogiltig utdata: {validation_probabilities.shape}. "
+            f"Förväntad form är {expected_shape}."
+        )
+        return False
+
+    validation_predictions = validation_probabilities.argmax(axis=1)
+    report_text, report_table = _create_classification_report(
+        validation_labels,
+        validation_predictions,
+    )
+    (output_run_dir / "classification_report.txt").write_text(
+        report_text,
+        encoding="utf-8",
+    )
+    report_table.to_csv(output_run_dir / "classification_report.csv", index=False)
+
+    print(f"\n{report_text}")
+
     _save_summary(
         model=model,
         run_id=run_id,
@@ -285,7 +324,78 @@ def _save_training_figure(history_table: pd.DataFrame, output_path: Path) -> Non
 
 
 # ============================================================
-# 5. SPARA SAMMANFATTNING
+# 5. SKAPA CLASSIFICATION REPORT
+# ============================================================
+# Rapporten visar precision, recall och F1 för varje klass i valideringsdatan.
+def create_classification_report(
+    y_true,
+    y_pred,
+    class_names=ANIMAL_CLASSES,
+) -> str:
+    y_true = np.array(y_true).astype(int)
+    y_pred = np.array(y_pred).astype(int)
+
+    report = sklearn_classification_report(
+        y_true,
+        y_pred,
+        labels=list(range(len(class_names))),
+        target_names=class_names,
+        zero_division=0,
+    )
+
+    return f"Classification report\n\n{report}"
+
+
+def _create_classification_report(
+    true_labels: np.ndarray,
+    predicted_labels: np.ndarray,
+) -> tuple[str, pd.DataFrame]:
+    report_text = create_classification_report(true_labels, predicted_labels)
+    report = sklearn_classification_report(
+        true_labels,
+        predicted_labels,
+        labels=np.arange(len(ANIMAL_CLASSES)),
+        target_names=ANIMAL_CLASSES,
+        output_dict=True,
+        zero_division=0,
+    )
+
+    rows = []
+
+    for label, animal in enumerate(ANIMAL_CLASSES):
+        metrics = report[animal]
+        rows.append(
+            {
+                "label": label,
+                "animal": animal,
+                "precision": metrics["precision"],
+                "recall": metrics["recall"],
+                "f1_score": metrics["f1-score"],
+                "support": int(metrics["support"]),
+            }
+        )
+
+    for report_key, row_name in [
+        ("macro avg", "macro_average"),
+        ("weighted avg", "weighted_average"),
+    ]:
+        metrics = report[report_key]
+        rows.append(
+            {
+                "label": "",
+                "animal": row_name,
+                "precision": metrics["precision"],
+                "recall": metrics["recall"],
+                "f1_score": metrics["f1-score"],
+                "support": int(metrics["support"]),
+            }
+        )
+
+    return report_text, pd.DataFrame(rows)
+
+
+# ============================================================
+# 6. SPARA SAMMANFATTNING
 # ============================================================
 # Sammanfattningen dokumenterar inställningarna och resultatet för varje körning.
 def _save_summary(
@@ -333,7 +443,7 @@ def _save_summary(
 
 
 # ============================================================
-# 6. STARTA MODELLTRÄNINGEN
+# 7. STARTA MODELLTRÄNINGEN
 # ============================================================
 # Funktionen kan köras direkt eller genom projektets pipeline-meny.
 if __name__ == "__main__":
