@@ -143,7 +143,7 @@ ANIMAL_GROUPS = {
 # ============================================================
 # Samma seed används för urval och uppdelning så att resultatet kan återskapas.
 IMAGE_SIZE = 28
-SAMPLES_PER_CLASS = 5000
+SAMPLES_PER_CLASS = 10000
 RANDOM_STATE = 42
 
 # Datasetet delas upp i träning, validering och test.
@@ -156,8 +156,8 @@ TEST_RATIO = 0.15
 # 4. PCA OCH UMAP
 # ============================================================
 # Ett balanserat urval håller analysen hanterbar utan att någon klass dominerar.
-PCA_SAMPLES_PER_CLASS = 500
-UMAP_SAMPLES_PER_CLASS = 250
+PCA_SAMPLES_PER_CLASS = 1000
+UMAP_SAMPLES_PER_CLASS = 500
 PCA_VARIANCE = 0.95
 UMAP_N_NEIGHBORS = 15
 UMAP_MIN_DIST = 0.1
