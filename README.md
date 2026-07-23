@@ -44,6 +44,7 @@ zoodle/
 ├── prepare_data.py              # Förbereder och delar upp datasetet
 ├── pipeline.py                  # Projektets terminalmeny
 ├── training.py                  # Tränar och sparar CNN-modellen
+├── zoodle_project.ipynb         # Presenterar projektets analyser och resultat
 ├── requirements.txt            # Projektets Python-bibliotek
 ├── .gitignore
 └── README.md
@@ -120,6 +121,12 @@ python evaluation.py
 Programmet visar tillgängliga checkpoints tillsammans med kort träningsinformation. Den valda modellen utvärderas mot testdatan och varje utvärdering sparas i en unik mapp under `output/evaluation/<checkpoint_id>`.
 
 Resultatet innehåller sammanfattande testmått, förväxlingsmatris, klassernas F1-resultat, ROC-AUC, vanliga förväxlingar och tydliga exempel på felklassificeringar. ROC visas som mikro- och makrokurvor samt ett sorterat AUC-diagram för alla djurklasser.
+
+## Projektets notebook
+
+`zoodle_project.ipynb` sammanfattar projektidén, dataförberedelsen, EDA, PCA, UMAP, modellträningen och den slutliga utvärderingen. Notebooken importerar gemensamma inställningar och funktioner från projektet och visar resultat som redan har skapats av pipeline-stegen.
+
+Starta notebooken från projektroten med det notebook-verktyg som finns installerat lokalt. De pipeline-steg som ska presenteras behöver ha körts minst en gång så att motsvarande filer finns i `output/`.
 
 ## Git-konventioner
 
