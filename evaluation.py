@@ -1,18 +1,21 @@
-"""Evaluate a selected Zoodle checkpoint on the prepared test data."""
+"""Evaluate a selected Zoodle model on the prepared test data."""
 
-from datetime import datetime
 from pathlib import Path
 
+import joblib
 import matplotlib
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from sklearn.decomposition import PCA
 from sklearn.metrics import (
     auc,
     confusion_matrix,
     precision_recall_fscore_support,
     roc_curve,
 )
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import label_binarize
 
 matplotlib.use("Agg")
@@ -20,55 +23,98 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.ticker import PercentFormatter
 
+from cnn_model import predict_cnn_in_batches
+from knn_model import prepare_knn_images
 from settings import (
     ANIMAL_CLASSES,
-    BATCH_SIZE,
-    EVALUATION_OUTPUT_DIR,
+    CNN_BATCH_SIZE,
+    CNN_EVALUATION_OUTPUT_DIR,
     IMAGE_SIZE,
+    KNN_DATA_FRACTION,
+    KNN_EVALUATION_OUTPUT_DIR,
+    KNN_MODEL_OUTPUT_DIR,
+    KNN_PREDICTION_BATCH_SIZE,
+    KNN_TRAINING_OUTPUT_DIR,
     MISCLASSIFIED_EXAMPLES,
     MODEL_OUTPUT_DIR,
     PROCESSED_DATA_DIR,
+    RANDOM_STATE,
     TOP_CONFUSIONS,
     TRAINING_OUTPUT_DIR,
 )
+
+CNN_MODEL_TYPE = "CNN"
+KNN_MODEL_TYPE = "PCA + KNN"
 
 
 # ============================================================
 # 1. UTVÄRDERA MODELLEN
 # ============================================================
-# Användaren väljer checkpoint innan testdatan läses och utvärderas.
+# Användaren väljer modellkörning innan testdatan läses och utvärderas.
 def evaluate_model() -> bool:
-    model_path = _select_checkpoint()
-    if model_path is None:
+    selection = _select_checkpoint()
+    if selection is None:
+        return False
+
+    model_type, model_path = selection
+    checkpoint_id = model_path.parent.name
+    evaluation_root = (
+        CNN_EVALUATION_OUTPUT_DIR
+        if model_type == CNN_MODEL_TYPE
+        else KNN_EVALUATION_OUTPUT_DIR
+    )
+    output_dir = evaluation_root / checkpoint_id
+
+    if output_dir.exists():
+        print(
+            f"\nCheckpoint {checkpoint_id} har redan utvärderats.\n"
+            f"Befintligt resultat: {output_dir}\n"
+            "Ta bort resultatmappen manuellt om modellen ska utvärderas på nytt."
+        )
         return False
 
     test_data = _load_test_data()
     if test_data is None:
         return False
 
-    model = _load_model(model_path)
+    test_images, test_labels = test_data
+    del test_data
+    sample_indices = np.arange(len(test_labels))
+
+    if model_type == CNN_MODEL_TYPE:
+        model = _load_model(model_path)
+    else:
+        model = _load_knn_model(model_path)
+
     if model is None:
         return False
 
-    test_images, test_labels = test_data
-    test_dataset = tf.data.Dataset.from_tensor_slices(test_images)
-    test_dataset = test_dataset.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
-
-    checkpoint_id = model_path.parent.name
+    if model_type == KNN_MODEL_TYPE:
+        selected_data = _select_knn_test_data(
+            test_images,
+            test_labels,
+            sample_indices,
+        )
+        if selected_data is None:
+            return False
+        test_images, test_labels, sample_indices = selected_data
 
     print("\n========================================")
     print("MODELLUTVÄRDERING STARTAR")
     print("========================================")
+    print(f"Modelltyp: {model_type}")
     print(f"Checkpoint: {checkpoint_id}")
     print(f"Testbilder: {len(test_images)}")
 
     # --------------------------------------------------------
     # 1.1 Skapa prediktioner
     # --------------------------------------------------------
-    try:
-        probabilities = model.predict(test_dataset, verbose=1)
-    except (OSError, ValueError, tf.errors.OpError) as error:
-        print(f"\nModellen kunde inte skapa prediktioner: {error}")
+    probabilities = _create_predictions(
+        model=model,
+        model_type=model_type,
+        test_images=test_images,
+    )
+    if probabilities is None:
         return False
 
     expected_shape = (len(test_images), len(ANIMAL_CLASSES))
@@ -107,6 +153,7 @@ def evaluate_model() -> bool:
 
     predictions = pd.DataFrame(
         {
+            "sample_index": sample_indices,
             "true_label": test_labels,
             "true_animal": np.array(ANIMAL_CLASSES)[test_labels],
             "predicted_label": predicted_labels,
@@ -117,10 +164,8 @@ def evaluate_model() -> bool:
     )
 
     # --------------------------------------------------------
-    # 1.3 Skapa en unik resultatmapp
+    # 1.3 Skapa checkpointens resultatmapp
     # --------------------------------------------------------
-    evaluation_id = _create_evaluation_id(checkpoint_id)
-    output_dir = EVALUATION_OUTPUT_DIR / checkpoint_id / evaluation_id
     output_dir.mkdir(parents=True)
 
     roc_table.to_csv(output_dir / "roc_auc.csv", index=False)
@@ -171,7 +216,7 @@ def evaluate_model() -> bool:
 
     _save_summary(
         checkpoint_id=checkpoint_id,
-        evaluation_id=evaluation_id,
+        model_type=model_type,
         model_path=model_path,
         test_size=len(test_images),
         test_loss=test_loss,
@@ -200,42 +245,57 @@ def evaluate_model() -> bool:
 # ============================================================
 # 2. VÄLJ CHECKPOINT
 # ============================================================
-# Modellerna sorteras med den senaste träningskörningen först.
-def _select_checkpoint() -> Path | None:
+# CNN- och KNN-modeller sorteras tillsammans med den senaste körningen först.
+def _select_checkpoint() -> tuple[str, Path] | None:
+    checkpoints = [
+        (CNN_MODEL_TYPE, path)
+        for path in MODEL_OUTPUT_DIR.glob("*/best_model.keras")
+    ]
+    checkpoints.extend(
+        (KNN_MODEL_TYPE, path)
+        for path in KNN_MODEL_OUTPUT_DIR.glob("*/knn_model.joblib")
+    )
     checkpoints = sorted(
-        MODEL_OUTPUT_DIR.glob("*/best_model.keras"),
-        key=lambda path: path.parent.name,
+        checkpoints,
+        key=lambda item: item[1].parent.name,
         reverse=True,
     )
 
     if not checkpoints:
-        print(f"\nInga tränade modeller hittades i {MODEL_OUTPUT_DIR}.")
+        print(
+            "\nInga tränade modeller hittades i "
+            f"{MODEL_OUTPUT_DIR} eller {KNN_MODEL_OUTPUT_DIR}."
+        )
         print("Träna en modell innan utvärderingen startas.")
         return None
 
     print("\n========================================")
-    print("VÄLJ CHECKPOINT FÖR UTVÄRDERING")
+    print("VÄLJ MODELL FÖR UTVÄRDERING")
     print("========================================")
 
-    for number, checkpoint in enumerate(checkpoints, start=1):
+    for number, (model_type, checkpoint) in enumerate(checkpoints, start=1):
         checkpoint_id = checkpoint.parent.name
-        details = _read_training_details(checkpoint_id)
+        details = _read_training_details(checkpoint_id, model_type)
         detail_text = f" | {details}" if details else ""
-        print(f"{number}. {checkpoint_id}{detail_text}")
+        print(f"{number}. [{model_type}] {checkpoint_id}{detail_text}")
 
     print("0. Avbryt")
 
     while True:
-        choice = input("\nVälj checkpoint: ").strip()
+        choice = input("\nVälj modellkörning: ").strip()
 
         if choice == "0":
             print("\nUtvärderingen avbröts.")
             return None
 
         if choice.isdigit() and 1 <= int(choice) <= len(checkpoints):
-            selected_checkpoint = checkpoints[int(choice) - 1]
-            print(f"\nVald checkpoint: {selected_checkpoint.parent.name}")
-            return selected_checkpoint
+            selected_model = checkpoints[int(choice) - 1]
+            model_type, selected_checkpoint = selected_model
+            print(
+                f"\nVald modell: {model_type} "
+                f"({selected_checkpoint.parent.name})"
+            )
+            return selected_model
 
         print("\nOgiltigt val. Försök igen.")
 
@@ -244,8 +304,26 @@ def _select_checkpoint() -> Path | None:
 # 3. LÄS TRÄNINGSINFORMATION
 # ============================================================
 # En kort beskrivning hjälper användaren att skilja modellerna åt i menyn.
-def _read_training_details(checkpoint_id: str) -> str:
-    summary_path = TRAINING_OUTPUT_DIR / checkpoint_id / "summary.txt"
+def _read_training_details(
+    checkpoint_id: str,
+    model_type: str = CNN_MODEL_TYPE,
+) -> str:
+    if model_type == CNN_MODEL_TYPE:
+        summary_path = TRAINING_OUTPUT_DIR / checkpoint_id / "summary.txt"
+        wanted_fields = {
+            "Valideringsträffsäkerhet vid bästa epok": "validation_accuracy",
+            "Dropout": "dropout",
+            "Dataaugmentering": "augmentation",
+            "Eager mode": "eager_mode",
+        }
+    else:
+        summary_path = KNN_TRAINING_OUTPUT_DIR / checkpoint_id / "summary.txt"
+        wanted_fields = {
+            "Valideringsträffsäkerhet": "validation_accuracy",
+            "Antal grannar": "neighbors",
+            "Antal PCA-komponenter": "pca_components",
+        }
+
     if not summary_path.exists():
         return ""
 
@@ -255,12 +333,6 @@ def _read_training_details(checkpoint_id: str) -> str:
         return ""
 
     values = {}
-    wanted_fields = {
-        "Valideringsträffsäkerhet vid bästa epok": "validation_accuracy",
-        "Dropout": "dropout",
-        "Dataaugmentering": "augmentation",
-    }
-
     for line in summary_lines:
         if ":" not in line:
             continue
@@ -283,6 +355,15 @@ def _read_training_details(checkpoint_id: str) -> str:
 
     if "augmentation" in values:
         details.append(f"augmentering {values['augmentation']}")
+
+    if "eager_mode" in values:
+        details.append(f"eager mode {values['eager_mode']}")
+
+    if "neighbors" in values:
+        details.append(f"grannar {values['neighbors']}")
+
+    if "pca_components" in values:
+        details.append(f"PCA {values['pca_components']} komponenter")
 
     return " | ".join(details)
 
@@ -352,10 +433,58 @@ def _load_test_data() -> tuple[np.ndarray, np.ndarray] | None:
     return images, labels
 
 
+# --------------------------------------------------------
+# 4.1 Välj ett balanserat testurval för KNN
+# --------------------------------------------------------
+# Samma seed och andel används för varje klass så att urvalet kan återskapas.
+def _select_knn_test_data(
+    images: np.ndarray,
+    labels: np.ndarray,
+    sample_indices: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+    if not 0 < KNN_DATA_FRACTION <= 1:
+        print("\nKNN_DATA_FRACTION måste vara större än 0 och högst 1.")
+        return None
+
+    class_counts = np.bincount(labels, minlength=len(ANIMAL_CLASSES))
+    if len(np.unique(class_counts)) != 1:
+        print("\nTestdatan måste ha lika många bilder i varje klass för KNN.")
+        return None
+
+    if KNN_DATA_FRACTION == 1.0:
+        return images, labels, sample_indices
+
+    samples_per_class = int(round(class_counts[0] * KNN_DATA_FRACTION))
+    if samples_per_class < 1:
+        print("\nKNN-andelen ger inga testbilder per klass.")
+        return None
+
+    random_generator = np.random.default_rng(RANDOM_STATE + 2)
+    selected_indices = []
+
+    for label in range(len(ANIMAL_CLASSES)):
+        class_indices = np.flatnonzero(labels == label)
+        selected_indices.extend(
+            random_generator.choice(
+                class_indices,
+                size=samples_per_class,
+                replace=False,
+            )
+        )
+
+    selected_indices = np.sort(np.asarray(selected_indices, dtype=np.int64))
+
+    return (
+        images[selected_indices],
+        labels[selected_indices],
+        sample_indices[selected_indices],
+    )
+
+
 # ============================================================
 # 5. LADDA MODELLEN
 # ============================================================
-# Optimizerstatus behövs inte när modellen endast ska skapa prediktioner.
+# Optimizerstatus behövs inte när CNN-modellen endast ska skapa prediktioner.
 def _load_model(model_path: Path) -> tf.keras.Model | None:
     try:
         model = tf.keras.models.load_model(model_path, compile=False)
@@ -381,6 +510,125 @@ def _load_model(model_path: Path) -> tf.keras.Model | None:
         return None
 
     return model
+
+
+# --------------------------------------------------------
+# 5.1 Ladda PCA- och KNN-modellen
+# --------------------------------------------------------
+# Den sparade pipelinen måste innehålla både en tränad PCA och en tränad KNN.
+def _load_knn_model(model_path: Path) -> Pipeline | None:
+    try:
+        model = joblib.load(model_path)
+    except Exception as error:
+        print(f"\nKunde inte läsa modellen {model_path}: {error}")
+        return None
+
+    if not isinstance(model, Pipeline):
+        print("\nKNN-modellen måste vara en sklearn-pipeline.")
+        return None
+
+    pca_model = model.named_steps.get("pca")
+    knn_model = model.named_steps.get("knn")
+
+    if not isinstance(pca_model, PCA) or not isinstance(
+        knn_model,
+        KNeighborsClassifier,
+    ):
+        print("\nKNN-pipelinen måste innehålla stegen pca och knn.")
+        return None
+
+    expected_features = IMAGE_SIZE * IMAGE_SIZE
+    if getattr(model, "n_features_in_", None) != expected_features:
+        print(
+            f"\nKNN-modellen har fel antal indatavärden: "
+            f"{getattr(model, 'n_features_in_', None)}. "
+            f"Förväntat antal är {expected_features}."
+        )
+        return None
+
+    expected_classes = np.arange(len(ANIMAL_CLASSES))
+    model_classes = getattr(knn_model, "classes_", None)
+    if model_classes is None or not np.array_equal(
+        model_classes,
+        expected_classes,
+    ):
+        print("\nKNN-modellen måste innehålla samtliga etiketter 0–47.")
+        return None
+
+    return model
+
+
+# --------------------------------------------------------
+# 5.2 Skapa prediktioner med vald modell
+# --------------------------------------------------------
+# CNN anropas direkt i eager mode medan KNN arbetar med normaliserade platta bilder.
+def _create_predictions(
+    model: tf.keras.Model | Pipeline,
+    model_type: str,
+    test_images: np.ndarray,
+) -> np.ndarray | None:
+    if model_type == CNN_MODEL_TYPE:
+        try:
+            return predict_cnn_in_batches(
+                model=model,
+                images=test_images,
+                batch_size=CNN_BATCH_SIZE,
+                progress_label="CNN-prediktioner",
+            )
+        except (OSError, ValueError, tf.errors.OpError) as error:
+            print(f"\nModellen kunde inte skapa prediktioner: {error}")
+            return None
+
+    if KNN_PREDICTION_BATCH_SIZE < 1:
+        print("\nKNN_PREDICTION_BATCH_SIZE måste vara minst 1.")
+        return None
+
+    try:
+        prepared_images = prepare_knn_images(test_images)
+        probability_batches = []
+
+        for start in range(
+            0,
+            len(prepared_images),
+            KNN_PREDICTION_BATCH_SIZE,
+        ):
+            stop = min(
+                start + KNN_PREDICTION_BATCH_SIZE,
+                len(prepared_images),
+            )
+            probability_batches.append(
+                model.predict_proba(prepared_images[start:stop])
+            )
+            _print_progress_bar(
+                current=stop,
+                total=len(prepared_images),
+                label="KNN-prediktioner",
+            )
+
+        return np.vstack(probability_batches)
+    except (MemoryError, OSError, ValueError) as error:
+        print(f"\nModellen kunde inte skapa prediktioner: {error}")
+        return None
+
+
+# --------------------------------------------------------
+# 5.3 Visa förloppet för KNN-prediktionerna
+# --------------------------------------------------------
+# Progressbaren uppdateras efter varje batch och använder samma terminalrad.
+def _print_progress_bar(current: int, total: int, label: str) -> None:
+    progress = current / total
+    bar_width = 30
+    filled_width = int(bar_width * progress)
+    bar = "█" * filled_width + "-" * (bar_width - filled_width)
+
+    print(
+        f"\r{label}: [{bar}] {current}/{total} ({progress:.0%})",
+        end="",
+        flush=True,
+    )
+
+    if current == total:
+        print()
 
 
 # ============================================================
@@ -561,25 +809,7 @@ def _create_top_confusions(confusion_counts: np.ndarray) -> pd.DataFrame:
 
 
 # ============================================================
-# 9. SKAPA UTVÄRDERINGS-ID
-# ============================================================
-# Varje körning sparas separat under checkpointens egen mapp.
-def _create_evaluation_id(checkpoint_id: str) -> str:
-    base_evaluation_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    evaluation_id = base_evaluation_id
-    number = 2
-
-    while (
-        EVALUATION_OUTPUT_DIR / checkpoint_id / evaluation_id
-    ).exists():
-        evaluation_id = f"{base_evaluation_id}_{number}"
-        number += 1
-
-    return evaluation_id
-
-
-# ============================================================
-# 10. SPARA CONFUSION MATRIX
+# 9. SPARA CONFUSION MATRIX
 # ============================================================
 # Matrisen normaliseras per verklig klass och visas utan text i varje ruta.
 def _save_confusion_matrix(
@@ -618,7 +848,7 @@ def _save_confusion_matrix(
 
 
 # ============================================================
-# 11. SPARA KLASSRESULTAT
+# 10. SPARA KLASSRESULTAT
 # ============================================================
 # Klasserna sorteras efter F1 så att styrkor och svagheter syns tydligt.
 def _save_class_performance(
@@ -641,7 +871,7 @@ def _save_class_performance(
 
 
 # ============================================================
-# 12. SPARA ROC-KURVOR
+# 11. SPARA ROC-KURVOR
 # ============================================================
 # Mikro- och makrogenomsnitt visas utan separata kurvor för alla 48 klasser.
 def _save_roc_curve(roc_curves: dict, output_path: Path) -> None:
@@ -674,7 +904,7 @@ def _save_roc_curve(roc_curves: dict, output_path: Path) -> None:
 
 
 # ============================================================
-# 13. SPARA ROC-AUC PER KLASS
+# 12. SPARA ROC-AUC PER KLASS
 # ============================================================
 # Det sorterade diagrammet visar tydligt vilka djurklasser som är svagast.
 def _save_roc_auc_per_class(
@@ -699,7 +929,7 @@ def _save_roc_auc_per_class(
 
 
 # ============================================================
-# 14. SPARA VANLIGA FÖRVÄXLINGAR
+# 13. SPARA VANLIGA FÖRVÄXLINGAR
 # ============================================================
 # Diagrammet visar riktningen från verklig klass till modellens gissning.
 def _save_top_confusions(
@@ -729,7 +959,7 @@ def _save_top_confusions(
 
 
 # ============================================================
-# 15. SPARA FELKLASSIFICERADE EXEMPEL
+# 14. SPARA FELKLASSIFICERADE EXEMPEL
 # ============================================================
 # De säkraste felaktiga gissningarna visar var modellen är mest övertygad men har fel.
 def _save_misclassified_examples(
@@ -779,12 +1009,11 @@ def _save_misclassified_examples(
 
 
 # ============================================================
-# 16. SPARA SAMMANFATTNING
+# 15. SPARA SAMMANFATTNING
 # ============================================================
 # Sammanfattningen samlar de viktigaste testresultaten i ett läsbart format.
 def _save_summary(
     checkpoint_id: str,
-    evaluation_id: str,
     model_path: Path,
     test_size: int,
     test_loss: float,
@@ -795,6 +1024,7 @@ def _save_summary(
     roc_table: pd.DataFrame,
     roc_curves: dict,
     output_path: Path,
+    model_type: str = CNN_MODEL_TYPE,
 ) -> None:
     class_rows = report_table[report_table["label"] != ""]
     best_class = class_rows.loc[class_rows["f1_score"].idxmax()]
@@ -806,8 +1036,10 @@ def _save_summary(
     summary_lines = [
         "MODELLUTVÄRDERING - ZOODLE",
         "========================================",
+        f"Modelltyp: {model_type}",
+        f"Testdataandel: "
+        f"{KNN_DATA_FRACTION if model_type == KNN_MODEL_TYPE else 1.0:.2%}",
         f"Checkpoint: {checkpoint_id}",
-        f"Utvärderings-ID: {evaluation_id}",
         f"Modell: {model_path}",
         f"Testbilder: {test_size}",
         f"Antal klasser: {len(ANIMAL_CLASSES)}",
@@ -831,11 +1063,14 @@ def _save_summary(
         f"({weakest_roc_class['roc_auc']:.4f})",
     ]
 
+    if model_type == CNN_MODEL_TYPE:
+        summary_lines.insert(3, "Eager mode vid inference: Ja")
+
     output_path.write_text("\n".join(summary_lines), encoding="utf-8")
 
 
 # ============================================================
-# 17. STARTA MODELLUTVÄRDERINGEN
+# 16. STARTA MODELLUTVÄRDERINGEN
 # ============================================================
 # Funktionen kan köras direkt eller genom projektets pipeline-meny.
 if __name__ == "__main__":

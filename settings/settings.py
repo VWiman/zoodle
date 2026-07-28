@@ -15,6 +15,10 @@ UMAP_OUTPUT_DIR = Path("output") / "umap"
 TRAINING_OUTPUT_DIR = Path("output") / "training"
 MODEL_OUTPUT_DIR = Path("artifacts") / "training"
 EVALUATION_OUTPUT_DIR = Path("output") / "evaluation"
+CNN_EVALUATION_OUTPUT_DIR = EVALUATION_OUTPUT_DIR / "cnn"
+KNN_TRAINING_OUTPUT_DIR = Path("output") / "knn"
+KNN_MODEL_OUTPUT_DIR = Path("artifacts") / "knn"
+KNN_EVALUATION_OUTPUT_DIR = EVALUATION_OUTPUT_DIR / "knn"
 
 
 # ============================================================
@@ -164,27 +168,43 @@ UMAP_MIN_DIST = 0.1
 
 
 # ============================================================
-# 5. MODELLTRÄNING
+# 5. CNN-MODELL OCH TRÄNING
 # ============================================================
-# Träningsinställningarna kan ändras mellan körningar för att jämföra resultat.
-BATCH_SIZE = 128
-EPOCHS = 45
-LEARNING_RATE = 1e-4
-USE_EARLY_STOPPING = True
-EARLY_STOPPING_PATIENCE = 5
-USE_REDUCE_LR_ON_PLATEAU = True
-REDUCE_LR_PATIENCE = 2
-REDUCE_LR_FACTOR = 0.5
-MIN_LEARNING_RATE = 1e-6
-DROPOUT_RATE = 0.3
-USE_DATA_AUGMENTATION = True
-AUGMENTATION_ROTATION = 0.08
-AUGMENTATION_TRANSLATION = 0.1
-AUGMENTATION_ZOOM = 0.1
+# CNN-inställningarna kan ändras mellan körningar för att jämföra resultat.
+CNN_BATCH_SIZE = 128
+CNN_EPOCHS = 45
+CNN_LEARNING_RATE = 1e-4
+# Eager mode används för att undvika felaktiga graph-beräkningar på Metal.
+CNN_RUN_EAGERLY = True
+CNN_USE_EARLY_STOPPING = True
+CNN_EARLY_STOPPING_PATIENCE = 5
+CNN_USE_REDUCE_LR_ON_PLATEAU = True
+CNN_REDUCE_LR_PATIENCE = 2
+CNN_REDUCE_LR_FACTOR = 0.5
+CNN_MIN_LEARNING_RATE = 1e-6
+CNN_DROPOUT_RATE = 0.3
+CNN_USE_DATA_AUGMENTATION = True
+CNN_AUGMENTATION_ROTATION = 0.08
+CNN_AUGMENTATION_TRANSLATION = 0.1
+CNN_AUGMENTATION_ZOOM = 0.1
 
 
 # ============================================================
-# 6. MODELLUTVÄRDERING
+# 6. PCA + KNN-MODELL
+# ============================================================
+# KNN använder hela den split som är aktuell för träning, validering eller test.
+KNN_DATA_FRACTION = 1.00
+KNN_PCA_VARIANCE = 0.95
+KNN_N_NEIGHBORS = 5
+KNN_WEIGHTS = "distance"
+KNN_METRIC = "euclidean"
+KNN_ALGORITHM = "brute"
+KNN_N_JOBS = -1
+KNN_PREDICTION_BATCH_SIZE = 128
+
+
+# ============================================================
+# 7. MODELLUTVÄRDERING
 # ============================================================
 # De vanligaste förväxlingarna och tydliga felexempel lyfts fram i resultatet.
 TOP_CONFUSIONS = 15
