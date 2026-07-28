@@ -11,6 +11,7 @@ from settings import (
     RAW_DATA_DIR,
     SAMPLES_PER_CLASS,
     TEST_RATIO,
+    TRAIN_RATIO,
     VALIDATION_RATIO,
 )
 
@@ -20,6 +21,18 @@ from settings import (
 # ============================================================
 # Råfilerna kontrolleras innan bilderna väljs och delas upp.
 def prepare_dataset():
+    split_ratios = np.array(
+        [TRAIN_RATIO, VALIDATION_RATIO, TEST_RATIO],
+        dtype=float,
+    )
+
+    if np.any(split_ratios <= 0) or not np.isclose(split_ratios.sum(), 1.0):
+        print(
+            "\nAndelarna för träning, validering och test måste vara positiva "
+            "och tillsammans bli 1."
+        )
+        return False
+
     missing_files = []
 
     for animal in ANIMAL_CLASSES:
@@ -118,7 +131,7 @@ def prepare_dataset():
     train_images, temporary_images, train_labels, temporary_labels = train_test_split(
         images,
         labels,
-        test_size=temporary_ratio,
+        train_size=TRAIN_RATIO,
         stratify=labels,
         random_state=RANDOM_STATE,
     )

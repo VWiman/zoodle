@@ -13,28 +13,29 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 
-from model import build_cnn_model
+from cnn_model import build_cnn_model, predict_cnn_in_batches
 from settings import (
     ANIMAL_CLASSES,
-    AUGMENTATION_ROTATION,
-    AUGMENTATION_TRANSLATION,
-    AUGMENTATION_ZOOM,
-    BATCH_SIZE,
-    DROPOUT_RATE,
-    EARLY_STOPPING_PATIENCE,
-    EPOCHS,
+    CNN_AUGMENTATION_ROTATION,
+    CNN_AUGMENTATION_TRANSLATION,
+    CNN_AUGMENTATION_ZOOM,
+    CNN_BATCH_SIZE,
+    CNN_DROPOUT_RATE,
+    CNN_EARLY_STOPPING_PATIENCE,
+    CNN_EPOCHS,
+    CNN_LEARNING_RATE,
+    CNN_MIN_LEARNING_RATE,
+    CNN_REDUCE_LR_FACTOR,
+    CNN_REDUCE_LR_PATIENCE,
+    CNN_RUN_EAGERLY,
+    CNN_USE_DATA_AUGMENTATION,
+    CNN_USE_EARLY_STOPPING,
+    CNN_USE_REDUCE_LR_ON_PLATEAU,
     IMAGE_SIZE,
-    LEARNING_RATE,
-    MIN_LEARNING_RATE,
     MODEL_OUTPUT_DIR,
     PROCESSED_DATA_DIR,
     RANDOM_STATE,
-    REDUCE_LR_FACTOR,
-    REDUCE_LR_PATIENCE,
     TRAINING_OUTPUT_DIR,
-    USE_DATA_AUGMENTATION,
-    USE_EARLY_STOPPING,
-    USE_REDUCE_LR_ON_PLATEAU,
 )
 
 
@@ -75,7 +76,7 @@ def train_model() -> bool:
     validation_images, validation_labels = validation_data
 
     # --------------------------------------------------------
-    # 1.1 Skapa TensorFlow-dataset
+    # 2.1 Skapa TensorFlow-dataset
     # --------------------------------------------------------
     tf.keras.utils.set_random_seed(RANDOM_STATE)
 
@@ -87,17 +88,17 @@ def train_model() -> bool:
         seed=RANDOM_STATE,
         reshuffle_each_iteration=True,
     )
-    train_dataset = train_dataset.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
+    train_dataset = train_dataset.batch(CNN_BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
 
     validation_dataset = tf.data.Dataset.from_tensor_slices(
         (validation_images, validation_labels)
     )
-    validation_dataset = validation_dataset.batch(BATCH_SIZE).prefetch(
+    validation_dataset = validation_dataset.batch(CNN_BATCH_SIZE).prefetch(
         tf.data.AUTOTUNE
     )
 
     # --------------------------------------------------------
-    # 1.2 Skapa mappar för den aktuella körningen
+    # 2.2 Skapa mappar för den aktuella körningen
     # --------------------------------------------------------
     run_id = _create_run_id()
     model_run_dir = MODEL_OUTPUT_DIR / run_id
@@ -106,7 +107,7 @@ def train_model() -> bool:
     output_run_dir.mkdir(parents=True)
 
     model_path = model_run_dir / "best_model.keras"
-    model = build_cnn_model(USE_DATA_AUGMENTATION)
+    model = build_cnn_model(CNN_USE_DATA_AUGMENTATION)
 
     callbacks, learning_rate_history = _create_callbacks(model_path)
 
@@ -116,22 +117,23 @@ def train_model() -> bool:
     print(f"Körnings-ID: {run_id}")
     print(f"Träningsbilder: {len(train_images)}")
     print(f"Valideringsbilder: {len(validation_images)}")
-    print(f"Dataaugmentering: {'Ja' if USE_DATA_AUGMENTATION else 'Nej'}")
-    print(f"Early stopping: {'Ja' if USE_EARLY_STOPPING else 'Nej'}")
+    print(f"Dataaugmentering: {'Ja' if CNN_USE_DATA_AUGMENTATION else 'Nej'}")
+    print(f"Eager mode: {'Ja' if CNN_RUN_EAGERLY else 'Nej'}")
+    print(f"Early stopping: {'Ja' if CNN_USE_EARLY_STOPPING else 'Nej'}")
     print(
         "ReduceLROnPlateau: "
-        f"{'Ja' if USE_REDUCE_LR_ON_PLATEAU else 'Nej'}"
+        f"{'Ja' if CNN_USE_REDUCE_LR_ON_PLATEAU else 'Nej'}"
     )
-    print(f"Maximalt antal epoker: {EPOCHS}")
+    print(f"Maximalt antal epoker: {CNN_EPOCHS}")
 
     # --------------------------------------------------------
-    # 1.3 Träna och spara den bästa modellen
+    # 2.3 Träna och spara den bästa modellen
     # --------------------------------------------------------
     try:
         history = model.fit(
             train_dataset,
             validation_data=validation_dataset,
-            epochs=EPOCHS,
+            epochs=CNN_EPOCHS,
             callbacks=callbacks,
         )
     except (OSError, ValueError, tf.errors.OpError) as error:
@@ -139,7 +141,7 @@ def train_model() -> bool:
         return False
 
     # --------------------------------------------------------
-    # 1.4 Spara träningsresultatet
+    # 2.4 Spara träningsresultatet
     # --------------------------------------------------------
     history_table = pd.DataFrame(
         {
@@ -157,14 +159,15 @@ def train_model() -> bool:
     _save_training_figure(history_table, output_run_dir / "training_history.png")
 
     # --------------------------------------------------------
-    # 1.5 Skapa classification report för valideringsdatan
+    # 2.5 Skapa classification report för valideringsdatan
     # --------------------------------------------------------
     try:
         best_model = tf.keras.models.load_model(model_path, compile=False)
-        validation_probabilities = best_model.predict(
-            validation_images,
-            batch_size=BATCH_SIZE,
-            verbose=1,
+        validation_probabilities = predict_cnn_in_batches(
+            model=best_model,
+            images=validation_images,
+            batch_size=CNN_BATCH_SIZE,
+            progress_label="Valideringsprediktioner",
         )
     except (OSError, ValueError, tf.errors.OpError) as error:
         print(f"\nClassification report kunde inte skapas: {error}")
@@ -226,23 +229,23 @@ def _create_callbacks(
     learning_rate_history = _LearningRateHistory()
     callbacks = [learning_rate_history]
 
-    if USE_EARLY_STOPPING:
+    if CNN_USE_EARLY_STOPPING:
         callbacks.append(
             tf.keras.callbacks.EarlyStopping(
                 monitor="val_loss",
-                patience=EARLY_STOPPING_PATIENCE,
+                patience=CNN_EARLY_STOPPING_PATIENCE,
                 restore_best_weights=True,
                 verbose=1,
             )
         )
 
-    if USE_REDUCE_LR_ON_PLATEAU:
+    if CNN_USE_REDUCE_LR_ON_PLATEAU:
         callbacks.append(
             tf.keras.callbacks.ReduceLROnPlateau(
                 monitor="val_loss",
-                factor=REDUCE_LR_FACTOR,
-                patience=REDUCE_LR_PATIENCE,
-                min_lr=MIN_LEARNING_RATE,
+                factor=CNN_REDUCE_LR_FACTOR,
+                patience=CNN_REDUCE_LR_PATIENCE,
+                min_lr=CNN_MIN_LEARNING_RATE,
                 verbose=1,
             )
         )
@@ -485,24 +488,25 @@ def _save_summary(
         "MODELLTRÄNING - ZOODLE",
         "========================================",
         f"Körnings-ID: {run_id}",
-        f"Dataaugmentering: {'Ja' if USE_DATA_AUGMENTATION else 'Nej'}",
-        f"Rotation vid augmentering: {AUGMENTATION_ROTATION}",
-        f"Förflyttning vid augmentering: {AUGMENTATION_TRANSLATION}",
-        f"Zoom vid augmentering: {AUGMENTATION_ZOOM}",
-        f"Dropout: {DROPOUT_RATE}",
+        f"Dataaugmentering: {'Ja' if CNN_USE_DATA_AUGMENTATION else 'Nej'}",
+        f"Rotation vid augmentering: {CNN_AUGMENTATION_ROTATION}",
+        f"Förflyttning vid augmentering: {CNN_AUGMENTATION_TRANSLATION}",
+        f"Zoom vid augmentering: {CNN_AUGMENTATION_ZOOM}",
+        f"Dropout: {CNN_DROPOUT_RATE}",
         f"Träningsbilder: {train_size}",
         f"Valideringsbilder: {validation_size}",
         f"Antal klasser: {len(ANIMAL_CLASSES)}",
-        f"Batchstorlek: {BATCH_SIZE}",
-        f"Maximalt antal epoker: {EPOCHS}",
+        f"Batchstorlek: {CNN_BATCH_SIZE}",
+        f"Eager mode: {'Ja' if CNN_RUN_EAGERLY else 'Nej'}",
+        f"Maximalt antal epoker: {CNN_EPOCHS}",
         f"Genomförda epoker: {len(history_table)}",
-        f"Early stopping: {'Ja' if USE_EARLY_STOPPING else 'Nej'}",
-        f"Tålamod för early stopping: {EARLY_STOPPING_PATIENCE}",
-        f"ReduceLROnPlateau: {'Ja' if USE_REDUCE_LR_ON_PLATEAU else 'Nej'}",
-        f"Tålamod för ReduceLROnPlateau: {REDUCE_LR_PATIENCE}",
-        f"Faktor för ReduceLROnPlateau: {REDUCE_LR_FACTOR}",
-        f"Minsta learning rate: {MIN_LEARNING_RATE}",
-        f"Initial learning rate: {LEARNING_RATE}",
+        f"Early stopping: {'Ja' if CNN_USE_EARLY_STOPPING else 'Nej'}",
+        f"Tålamod för early stopping: {CNN_EARLY_STOPPING_PATIENCE}",
+        f"ReduceLROnPlateau: {'Ja' if CNN_USE_REDUCE_LR_ON_PLATEAU else 'Nej'}",
+        f"Tålamod för ReduceLROnPlateau: {CNN_REDUCE_LR_PATIENCE}",
+        f"Faktor för ReduceLROnPlateau: {CNN_REDUCE_LR_FACTOR}",
+        f"Minsta learning rate: {CNN_MIN_LEARNING_RATE}",
+        f"Initial learning rate: {CNN_LEARNING_RATE}",
         f"Learning rate under sista epoken: "
         f"{history_table.iloc[-1]['learning_rate']:.8f}",
         f"Learning rate under bästa epoken: "
