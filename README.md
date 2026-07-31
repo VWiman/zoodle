@@ -137,13 +137,13 @@ python evaluation.py
 
 Programmet visar tillgängliga CNN- och KNN-körningar tillsammans med modelltyp och kort träningsinformation. Båda modellerna utvärderas mot hela testmängden. Under KNN-utvärderingen visas en progressbar. CNN-resultat sparas under `output/evaluation/cnn/<checkpoint_id>` och KNN-resultat under `output/evaluation/knn/<checkpoint_id>`.
 
-Resultatet innehåller sammanfattande testmått, förväxlingsmatris, klassernas F1-resultat, ROC-AUC, vanliga förväxlingar och tydliga exempel på felklassificeringar. ROC visas som mikro- och makrokurvor samt ett sorterat AUC-diagram för alla djurklasser.
+Resultatet innehåller sammanfattande testmått, förväxlingsmatris, klassernas F1-resultat, ROC-AUC, Average Precision, vanliga förväxlingar och tydliga exempel på felklassificeringar. ROC visas som mikro- och makrokurvor samt ett sorterat AUC-diagram för alla djurklasser. Precision–Recall visas som mikro- och makrokurvor, medan klassernas Average Precision samlas i ett sorterat diagram i stället för 48 separata kurvor.
 
 Varje checkpoint kan utvärderas en gång. Om en resultatmapp redan finns stoppas en ny utvärdering innan testdata eller modell läses in. För en avsiktlig omkörning behöver den befintliga resultatmappen först tas bort manuellt.
 
 ## Projektets notebook
 
-`zoodle_project.ipynb` sammanfattar projektidén, dataförberedelsen, EDA, PCA, UMAP, modellträningen och den slutliga utvärderingen. Notebooken importerar gemensamma inställningar och funktioner från projektet, visar resultat som redan har skapats av pipeline-stegen och jämför den klassiska PCA + KNN-baselinen med den vinnande CNN-arkitekturen.
+`zoodle_project.ipynb` sammanfattar projektidén, dataförberedelsen, EDA, PCA, UMAP, modellträningen och den slutliga utvärderingen. Notebooken importerar gemensamma inställningar och funktioner från projektet, visar resultat som redan har skapats av pipeline-stegen och jämför den klassiska PCA + KNN-baselinen med den vinnande CNN-arkitekturen. Utvärderingen innehåller även Precision–Recall-kurvor, Average Precision per klass och macro Average Precision för båda modellerna.
 
 Starta notebooken från projektroten med det notebook-verktyg som finns installerat lokalt. De pipeline-steg som ska presenteras behöver ha körts minst en gång så att motsvarande filer finns i `output/`.
 

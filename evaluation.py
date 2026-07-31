@@ -10,7 +10,9 @@ import tensorflow as tf
 from sklearn.decomposition import PCA
 from sklearn.metrics import (
     auc,
+    average_precision_score,
     confusion_matrix,
+    precision_recall_curve,
     precision_recall_fscore_support,
     roc_curve,
 )
@@ -144,6 +146,9 @@ def evaluate_model() -> bool:
         predicted_labels,
     )
     roc_table, roc_curves = _create_roc_results(test_labels, probabilities)
+    average_precision_table, precision_recall_curves = (
+        _create_precision_recall_results(test_labels, probabilities)
+    )
     confusion_counts = confusion_matrix(
         test_labels,
         predicted_labels,
@@ -169,6 +174,10 @@ def evaluate_model() -> bool:
     output_dir.mkdir(parents=True)
 
     roc_table.to_csv(output_dir / "roc_auc.csv", index=False)
+    average_precision_table.to_csv(
+        output_dir / "average_precision.csv",
+        index=False,
+    )
     top_confusions.to_csv(output_dir / "top_confusions.csv", index=False)
     predictions.to_csv(output_dir / "predictions.csv", index=False)
 
@@ -201,6 +210,15 @@ def evaluate_model() -> bool:
         roc_table,
         output_dir / "roc_auc_per_class.png",
     )
+    _save_precision_recall_curve(
+        precision_recall_curves,
+        output_dir / "precision_recall_curve.png",
+    )
+    _save_average_precision_per_class(
+        average_precision_table,
+        precision_recall_curves,
+        output_dir / "average_precision_per_class.png",
+    )
     _save_top_confusions(
         top_confusions,
         output_dir / "top_confusions.png",
@@ -226,6 +244,8 @@ def evaluate_model() -> bool:
         report_table=report_table,
         roc_table=roc_table,
         roc_curves=roc_curves,
+        average_precision_table=average_precision_table,
+        precision_recall_curves=precision_recall_curves,
         output_path=output_dir / "summary.txt",
     )
 
@@ -237,6 +257,33 @@ def evaluate_model() -> bool:
     print(f"Makro-F1: {class_metrics['macro_f1']:.4f}")
     print(f"Makro ROC-AUC: {roc_curves['macro_auc']:.4f}")
     print(f"Mikro ROC-AUC: {roc_curves['micro_auc']:.4f}")
+    print(
+        "Makro Average Precision: "
+        f"{precision_recall_curves['macro_average_precision']:.4f}"
+    )
+    print(
+        "Mikro Average Precision: "
+        f"{precision_recall_curves['micro_average_precision']:.4f}"
+    )
+    average_precision_class_rows = average_precision_table[
+        average_precision_table["label"] != ""
+    ]
+    best_average_precision_class = average_precision_class_rows.loc[
+        average_precision_class_rows["average_precision"].idxmax()
+    ]
+    weakest_average_precision_class = average_precision_class_rows.loc[
+        average_precision_class_rows["average_precision"].idxmin()
+    ]
+    print(
+        "Starkaste AP-klass: "
+        f"{best_average_precision_class['animal']} "
+        f"({best_average_precision_class['average_precision']:.4f})"
+    )
+    print(
+        "Svagaste AP-klass: "
+        f"{weakest_average_precision_class['animal']} "
+        f"({weakest_average_precision_class['average_precision']:.4f})"
+    )
     print(f"Resultat: {output_dir}")
 
     return True
@@ -764,7 +811,94 @@ def _create_roc_results(
 
 
 # ============================================================
-# 8. HITTA VANLIGA FÖRVÄXLINGAR
+# 8. BERÄKNA PRECISION-RECALL
+# ============================================================
+# Varje klass behandlas som positiv mot projektets övriga djurklasser.
+def _create_precision_recall_results(
+    true_labels: np.ndarray,
+    probabilities: np.ndarray,
+) -> tuple[pd.DataFrame, dict]:
+    binary_labels = label_binarize(
+        true_labels,
+        classes=np.arange(len(ANIMAL_CLASSES)),
+    )
+    recall_grid = np.linspace(0.0, 1.0, 1001)
+    mean_precision = np.zeros_like(recall_grid)
+    rows = []
+
+    for label, animal in enumerate(ANIMAL_CLASSES):
+        precision, recall, _ = precision_recall_curve(
+            binary_labels[:, label],
+            probabilities[:, label],
+        )
+        class_average_precision = average_precision_score(
+            binary_labels[:, label],
+            probabilities[:, label],
+        )
+
+        # Recall returneras i fallande ordning och vänds före interpoleringen.
+        # Makrokurvan är ett visuellt medelvärde på en gemensam recall-skala.
+        mean_precision += np.interp(
+            recall_grid,
+            recall[::-1],
+            precision[::-1],
+        )
+        rows.append(
+            {
+                "label": label,
+                "animal": animal,
+                "average_precision": class_average_precision,
+            }
+        )
+
+    mean_precision /= len(ANIMAL_CLASSES)
+    micro_precision, micro_recall, _ = precision_recall_curve(
+        binary_labels.ravel(),
+        probabilities.ravel(),
+    )
+    micro_average_precision = average_precision_score(
+        binary_labels,
+        probabilities,
+        average="micro",
+    )
+    # Macro Average Precision är sklearn-måttet och beräknas separat från
+    # den visuellt sammanvägda makrokurvan ovan.
+    macro_average_precision = average_precision_score(
+        binary_labels,
+        probabilities,
+        average="macro",
+    )
+
+    rows.extend(
+        [
+            {
+                "label": "",
+                "animal": "micro_average",
+                "average_precision": micro_average_precision,
+            },
+            {
+                "label": "",
+                "animal": "macro_average",
+                "average_precision": macro_average_precision,
+            },
+        ]
+    )
+
+    precision_recall_curves = {
+        "micro_precision": micro_precision,
+        "micro_recall": micro_recall,
+        "micro_average_precision": micro_average_precision,
+        "macro_precision": mean_precision,
+        "macro_recall": recall_grid,
+        "macro_average_precision": macro_average_precision,
+        "baseline": float(binary_labels.mean()),
+    }
+
+    return pd.DataFrame(rows), precision_recall_curves
+
+
+# ============================================================
+# 9. HITTA VANLIGA FÖRVÄXLINGAR
 # ============================================================
 # Diagonalen tas bort så att tabellen endast visar felaktiga prediktioner.
 def _create_top_confusions(confusion_counts: np.ndarray) -> pd.DataFrame:
@@ -809,7 +943,7 @@ def _create_top_confusions(confusion_counts: np.ndarray) -> pd.DataFrame:
 
 
 # ============================================================
-# 9. SPARA CONFUSION MATRIX
+# 10. SPARA CONFUSION MATRIX
 # ============================================================
 # Matrisen normaliseras per verklig klass och visas utan text i varje ruta.
 def _save_confusion_matrix(
@@ -848,7 +982,7 @@ def _save_confusion_matrix(
 
 
 # ============================================================
-# 10. SPARA KLASSRESULTAT
+# 11. SPARA KLASSRESULTAT
 # ============================================================
 # Klasserna sorteras efter F1 så att styrkor och svagheter syns tydligt.
 def _save_class_performance(
@@ -871,7 +1005,7 @@ def _save_class_performance(
 
 
 # ============================================================
-# 11. SPARA ROC-KURVOR
+# 12. SPARA ROC-KURVOR
 # ============================================================
 # Mikro- och makrogenomsnitt visas utan separata kurvor för alla 48 klasser.
 def _save_roc_curve(roc_curves: dict, output_path: Path) -> None:
@@ -904,7 +1038,7 @@ def _save_roc_curve(roc_curves: dict, output_path: Path) -> None:
 
 
 # ============================================================
-# 12. SPARA ROC-AUC PER KLASS
+# 13. SPARA ROC-AUC PER KLASS
 # ============================================================
 # Det sorterade diagrammet visar tydligt vilka djurklasser som är svagast.
 def _save_roc_auc_per_class(
@@ -929,7 +1063,93 @@ def _save_roc_auc_per_class(
 
 
 # ============================================================
-# 13. SPARA VANLIGA FÖRVÄXLINGAR
+# 14. SPARA PRECISION-RECALL-KURVOR
+# ============================================================
+# Mikro- och makrogenomsnitt visas utan separata kurvor för alla 48 klasser.
+def _save_precision_recall_curve(
+    precision_recall_curves: dict,
+    output_path: Path,
+) -> None:
+    fig, ax = plt.subplots(figsize=(9, 7))
+    ax.step(
+        precision_recall_curves["micro_recall"],
+        precision_recall_curves["micro_precision"],
+        color="#4C78A8",
+        linewidth=2,
+        where="post",
+        label=(
+            "Mikrogenomsnitt "
+            f"(AP {precision_recall_curves['micro_average_precision']:.4f})"
+        ),
+    )
+    ax.plot(
+        precision_recall_curves["macro_recall"],
+        precision_recall_curves["macro_precision"],
+        color="#F58518",
+        linewidth=2,
+        label=(
+            "Visuellt makrogenomsnitt "
+            f"(AP {precision_recall_curves['macro_average_precision']:.4f})"
+        ),
+    )
+    ax.axhline(
+        precision_recall_curves["baseline"],
+        color="#777777",
+        linestyle="--",
+        label=f"Baslinje ({precision_recall_curves['baseline']:.2%})",
+    )
+    ax.set_title("Precision–Recall-kurvor för testdatan")
+    ax.set_xlabel("Recall")
+    ax.set_ylabel("Precision")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1.01)
+    ax.grid(alpha=0.25)
+    ax.legend(loc="lower left")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+# ============================================================
+# 15. SPARA AVERAGE PRECISION PER KLASS
+# ============================================================
+# Alla klasser visas i ett sorterat diagram i stället för 48 separata kurvor.
+def _save_average_precision_per_class(
+    average_precision_table: pd.DataFrame,
+    precision_recall_curves: dict,
+    output_path: Path,
+) -> None:
+    class_rows = average_precision_table[
+        average_precision_table["label"] != ""
+    ].copy()
+    class_rows = class_rows.sort_values("average_precision")
+    macro_average_precision = precision_recall_curves["macro_average_precision"]
+
+    fig, ax = plt.subplots(figsize=(11, 14))
+    ax.barh(
+        class_rows["animal"],
+        class_rows["average_precision"],
+        color="#B279A2",
+    )
+    ax.axvline(
+        macro_average_precision,
+        color="#777777",
+        linestyle="--",
+        label=f"Makrogenomsnitt ({macro_average_precision:.4f})",
+    )
+    ax.set_title("Average Precision per djurklass")
+    ax.set_xlabel("Average Precision")
+    ax.set_ylabel("Djurklass")
+    ax.set_xlim(0, 1)
+    ax.grid(axis="x", alpha=0.25)
+    ax.legend(loc="lower right")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+# ============================================================
+# 16. SPARA VANLIGA FÖRVÄXLINGAR
 # ============================================================
 # Diagrammet visar riktningen från verklig klass till modellens gissning.
 def _save_top_confusions(
@@ -959,7 +1179,7 @@ def _save_top_confusions(
 
 
 # ============================================================
-# 14. SPARA FELKLASSIFICERADE EXEMPEL
+# 17. SPARA FELKLASSIFICERADE EXEMPEL
 # ============================================================
 # De säkraste felaktiga gissningarna visar var modellen är mest övertygad men har fel.
 def _save_misclassified_examples(
@@ -1009,7 +1229,7 @@ def _save_misclassified_examples(
 
 
 # ============================================================
-# 15. SPARA SAMMANFATTNING
+# 18. SPARA SAMMANFATTNING
 # ============================================================
 # Sammanfattningen samlar de viktigaste testresultaten i ett läsbart format.
 def _save_summary(
@@ -1023,6 +1243,8 @@ def _save_summary(
     report_table: pd.DataFrame,
     roc_table: pd.DataFrame,
     roc_curves: dict,
+    average_precision_table: pd.DataFrame,
+    precision_recall_curves: dict,
     output_path: Path,
     model_type: str = CNN_MODEL_TYPE,
 ) -> None:
@@ -1032,6 +1254,15 @@ def _save_summary(
     roc_class_rows = roc_table[roc_table["label"] != ""]
     best_roc_class = roc_class_rows.loc[roc_class_rows["roc_auc"].idxmax()]
     weakest_roc_class = roc_class_rows.loc[roc_class_rows["roc_auc"].idxmin()]
+    average_precision_class_rows = average_precision_table[
+        average_precision_table["label"] != ""
+    ]
+    best_average_precision_class = average_precision_class_rows.loc[
+        average_precision_class_rows["average_precision"].idxmax()
+    ]
+    weakest_average_precision_class = average_precision_class_rows.loc[
+        average_precision_class_rows["average_precision"].idxmin()
+    ]
 
     summary_lines = [
         "MODELLUTVÄRDERING - ZOODLE",
@@ -1053,6 +1284,10 @@ def _save_summary(
         f"Viktad F1: {class_metrics['weighted_f1']:.4f}",
         f"Makro ROC-AUC: {roc_curves['macro_auc']:.4f}",
         f"Mikro ROC-AUC: {roc_curves['micro_auc']:.4f}",
+        "Makro Average Precision: "
+        f"{precision_recall_curves['macro_average_precision']:.4f}",
+        "Mikro Average Precision: "
+        f"{precision_recall_curves['micro_average_precision']:.4f}",
         f"Starkaste klass: {best_class['animal']} "
         f"(F1 {best_class['f1_score']:.4f})",
         f"Svagaste klass: {weakest_class['animal']} "
@@ -1061,6 +1296,12 @@ def _save_summary(
         f"({best_roc_class['roc_auc']:.4f})",
         f"Svagaste ROC-AUC-klass: {weakest_roc_class['animal']} "
         f"({weakest_roc_class['roc_auc']:.4f})",
+        "Starkaste AP-klass: "
+        f"{best_average_precision_class['animal']} "
+        f"({best_average_precision_class['average_precision']:.4f})",
+        "Svagaste AP-klass: "
+        f"{weakest_average_precision_class['animal']} "
+        f"({weakest_average_precision_class['average_precision']:.4f})",
     ]
 
     if model_type == CNN_MODEL_TYPE:
@@ -1070,7 +1311,7 @@ def _save_summary(
 
 
 # ============================================================
-# 16. STARTA MODELLUTVÄRDERINGEN
+# 19. STARTA MODELLUTVÄRDERINGEN
 # ============================================================
 # Funktionen kan köras direkt eller genom projektets pipeline-meny.
 if __name__ == "__main__":
