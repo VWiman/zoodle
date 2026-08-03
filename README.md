@@ -1,6 +1,6 @@
 # Zoodle
 
-Zoodle är ett projekt där modeller tränas för att klassificera handritade djur. En CNN är projektets huvudmodell och PCA + KNN används som en klassisk baslinje. Tanken är att CNN-modellen senare ska användas i ett enkelt ritspel byggt med Streamlit.
+Zoodle är ett projekt där modeller tränas för att klassificera handritade djur. En CNN är projektets huvudmodell och PCA + KNN används som en klassisk baslinje. Den vinnande CNN-modellen används även i ett enkelt ritspel byggt med Streamlit.
 
 Projektet använder bilder från Googles [Quick, Draw!-dataset](https://github.com/googlecreativelab/quickdraw-dataset). Datasetet består av gråskalebilder med storleken 28 x 28 pixlar. Zoodle använder för närvarande 48 djurklasser.
 
@@ -25,6 +25,18 @@ Det fullständiga träningsflödet kör steg 1–6 och stannar om ett steg missl
 
 ```text
 zoodle/
+├── .streamlit/
+│   └── config.toml           # Tema, toolbar och gräns för uppladdning
+├── app/
+│   ├── assets/
+│   │   └── zoodle.css        # Appens visuella stil
+│   ├── model/
+│   │   └── zoodle_cnn.keras  # Fryst CNN-modell för inferens
+│   ├── __init__.py            # Gör appmappen importerbar
+│   ├── drawing_canvas.py     # Ritkomponent för mus och touch
+│   ├── inference.py          # Bildbehandling och prediktion
+│   ├── requirements.txt      # Bibliotek för Streamlit-appen
+│   └── streamlit_app.py      # Gränssnitt och rundflöde
 ├── artifacts/
 │   ├── knn/                  # Sparade PCA- och KNN-modeller
 │   └── training/             # Bästa CNN-modellen från varje körning
@@ -69,7 +81,31 @@ Installera projektets bibliotek med:
 python -m pip install -r requirements.txt
 ```
 
-Filen `requirements.txt` uppdateras när projektet börjar använda nya bibliotek.
+Streamlit-appen har en mindre requirements-fil som endast innehåller biblioteken som behövs för inferens:
+
+```text
+python -m pip install -r app/requirements.txt
+```
+
+Streamlit Community Cloud använder filen bredvid appens entrypoint i stället för projektrotens fullständiga `requirements.txt`.
+
+## Kör Streamlit-appen
+
+Starta appen från projektroten med:
+
+```bash
+streamlit run app/streamlit_app.py
+```
+
+Appen låter användaren rita en doodle eller ladda upp en PNG- eller JPEG-bild. Samma bildbehandling används i båda fallen. Bilden behandlas endast i minnet och sparas inte.
+
+Appen använder den frysta CNN-modellen från träningskörning `20260728_155542`. Den publika kopian finns i `app/model/zoodle_cnn.keras`. Träning och utvärdering körs inte i appen.
+
+## Driftsättning
+
+Efter merge till `main` skapas Community Cloud-appen från repot `VWiman/zoodle`. Den använder `app/streamlit_app.py` som entrypoint och Python 3.12. Önskad subdomän är `zoodle`, med `zoodle-viktorwiman` som reservnamn.
+
+När den slutliga `streamlit.app`-adressen är klar kan `www.viktorwiman.se/zoodle` ställas in som en vanlig redirect till appen.
 
 ## Kör projektet
 
@@ -191,4 +227,4 @@ chore: update gitignore
 
 ## Status
 
-Projektet är under utveckling och byggs stegvis. Träningsflöden för PCA + KNN och CNN samt gemensam modellutvärdering är implementerade. Notebooken redovisar de aktuella modellresultaten sida vid sida, medan ett separat automatiserat jämförelsesteg i pipeline kan läggas till senare.
+Projektets träningsflöden för PCA + KNN och CNN samt gemensam modellutvärdering är implementerade. Notebooken redovisar de aktuella modellresultaten sida vid sida. Streamlit-appen använder den valda CNN-modellen för ett publikt ritspel, medan ett separat automatiserat jämförelsesteg i pipeline kan läggas till senare.
