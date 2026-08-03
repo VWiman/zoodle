@@ -41,7 +41,7 @@ CANVAS_CSS = """
 }
 
 .canvas-frame {
-    width: min(100%, 620px);
+    width: min(100%, 560px, calc(100vh - 295px));
     aspect-ratio: 1;
     margin: 0 auto;
     overflow: hidden;
@@ -62,13 +62,17 @@ canvas {
 }
 
 .canvas-message {
-    width: min(100%, 620px);
-    min-height: 1.5rem;
-    margin: 0.55rem auto 0;
+    width: min(100%, 560px);
+    min-height: 1.3rem;
+    margin: 0.4rem auto 0;
     color: #6A655D;
     font-size: 0.9rem;
     line-height: 1.5;
     text-align: center;
+}
+
+.canvas-message:empty {
+    display: none;
 }
 
 .canvas-message[data-kind="error"] {
@@ -79,13 +83,13 @@ canvas {
     display: grid;
     grid-template-columns: minmax(7rem, 0.8fr) minmax(11rem, 1.2fr);
     gap: 0.75rem;
-    width: min(100%, 620px);
-    margin: 0 auto;
+    width: min(100%, 560px);
+    margin: 0.25rem auto 0;
 }
 
 button {
-    min-height: 3rem;
-    padding: 0.7rem 1rem;
+    min-height: 2.75rem;
+    padding: 0.6rem 1rem;
     border-radius: 999px;
     font: inherit;
     font-weight: 700;

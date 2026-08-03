@@ -123,12 +123,15 @@ def classify_image(image: Image.Image) -> None:
 def show_header() -> None:
     st.html(
         """
-        <p class="zoodle-eyebrow">Ett ritspel med maskininlärning</p>
-        <h1>Zoodle</h1>
-        <p class="zoodle-intro">
-            Rita djuret som visas eller ladda upp en egen doodle.
-            Sedan får Zoodle försöka lista ut vad bilden föreställer.
-        </p>
+        <div class="zoodle-header">
+            <div>
+                <p class="zoodle-eyebrow">Ett ritspel med maskininlärning</p>
+                <h1>Zoodle</h1>
+            </div>
+            <p class="zoodle-intro">
+                Rita djuret eller ladda upp en doodle. Sedan får Zoodle gissa.
+            </p>
+        </div>
         """
     )
 
@@ -285,8 +288,9 @@ def show_result() -> None:
         on_click=reset_attempt,
         width="stretch",
     )
+    next_animal_label = "Nästa djur" if is_correct else "Testa ett annat djur"
     next_column.button(
-        "Nästa djur",
+        next_animal_label,
         type="primary",
         on_click=choose_next_animal,
         width="stretch",
