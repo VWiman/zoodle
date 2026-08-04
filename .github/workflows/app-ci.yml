@@ -1,0 +1,100 @@
+name: App CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate Streamlit app
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: app/requirements.txt
+
+      - name: Install app dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r app/requirements.txt
+          python -m pip check
+
+      - name: Check Python files
+        run: python -m compileall -q app settings
+
+      - name: Test app and model
+        env:
+          TF_CPP_MIN_LOG_LEVEL: "2"
+        run: |
+          python - <<'PYTHON'
+          import numpy as np
+          from PIL import Image, ImageDraw
+          from streamlit.testing.v1 import AppTest
+
+          from app.inference import (
+              load_cnn_model,
+              predict_doodle,
+              prepare_doodle_image,
+          )
+
+          app = AppTest.from_file(
+              "app/streamlit_app.py",
+              default_timeout=60,
+          ).run()
+
+          assert len(app.exception) == 0, list(app.exception)
+
+          image = Image.new("L", (160, 160), color=255)
+          drawing = ImageDraw.Draw(image)
+          drawing.ellipse(
+              (35, 35, 125, 125),
+              outline=0,
+              width=10,
+          )
+          drawing.line(
+              (80, 25, 80, 135),
+              fill=0,
+              width=10,
+          )
+
+          prepared_image = prepare_doodle_image(image)
+
+          assert prepared_image.shape == (1, 28, 28, 1)
+          assert prepared_image.dtype == np.uint8
+
+          model = load_cnn_model()
+          predictions = predict_doodle(
+              model,
+              prepared_image,
+              top_k=3,
+          )
+
+          assert len(predictions) == 3
+          assert len({item["label"] for item in predictions}) == 3
+          assert all(
+              np.isfinite(item["confidence"])
+              for item in predictions
+          )
+
+          print("Streamlit-appen och CNN-modellen fungerar.")
+          PYTHON
