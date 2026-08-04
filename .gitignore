@@ -190,5 +190,8 @@ artifacts/*
 *.parquet
 *.pkl
 
+# Offentlig modell som används av Zoodle-appen
+!app/model/zoodle_cnn.keras
+
 # Local runtime state
 logs/
