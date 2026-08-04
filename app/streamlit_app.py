@@ -141,7 +141,7 @@ def show_challenge() -> None:
     st.html(
         f"""
         <div class="zoodle-challenge">
-            <span class="zoodle-challenge__label">Ditt djur</span>
+            <span class="zoodle-challenge__label">Ditt djur:</span>
             <span class="zoodle-challenge__animal">{escape(animal_name)}</span>
         </div>
         """

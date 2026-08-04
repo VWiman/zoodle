@@ -17,6 +17,13 @@ CANVAS_HTML = """
     </div>
     <p class="canvas-message" role="status" aria-live="polite"></p>
     <div class="canvas-actions">
+        <button
+            class="undo-button"
+            type="button"
+            aria-label="Ångra senaste strecket"
+            title="Ångra senaste strecket"
+            disabled
+        >Ångra</button>
         <button class="clear-button" type="button">Rensa</button>
         <button class="submit-button" type="button">Låt Zoodle gissa</button>
     </div>
@@ -41,7 +48,7 @@ CANVAS_CSS = """
 }
 
 .canvas-frame {
-    width: min(100%, 560px, calc(100vh - 295px));
+    width: min(100%, 560px, calc(100vh - 335px));
     aspect-ratio: 1;
     margin: 0 auto;
     overflow: hidden;
@@ -81,8 +88,8 @@ canvas {
 
 .canvas-actions {
     display: grid;
-    grid-template-columns: minmax(7rem, 0.8fr) minmax(11rem, 1.2fr);
-    gap: 0.75rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
     width: min(100%, 560px);
     margin: 0.25rem auto 0;
 }
@@ -97,11 +104,11 @@ button {
     transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
 }
 
-button:hover {
+button:not(:disabled):hover {
     transform: translateY(-1px);
 }
 
-button:active {
+button:not(:disabled):active {
     transform: translateY(0);
 }
 
@@ -110,17 +117,29 @@ button:focus-visible {
     outline-offset: 2px;
 }
 
+.undo-button,
 .clear-button {
     color: #527B76;
     background: #FFFFFF;
     border: 1px solid #B9CBC8;
 }
 
+.undo-button:not(:disabled):hover,
 .clear-button:hover {
     background: #F2F7F5;
 }
 
+button:disabled {
+    color: #96918A;
+    background: #F4F1EA;
+    border-color: #DDD7CD;
+    box-shadow: none;
+    cursor: not-allowed;
+    opacity: 0.72;
+}
+
 .submit-button {
+    grid-column: 1 / -1;
     color: #FFFFFF;
     background: #527B76;
     border: 1px solid #527B76;
@@ -136,9 +155,6 @@ button:focus-visible {
         border-radius: 18px;
     }
 
-    .canvas-actions {
-        grid-template-columns: 1fr;
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -155,6 +171,7 @@ export default function(component) {
     const root = parentElement.querySelector(".zoodle-drawing-canvas");
     const frame = root.querySelector(".canvas-frame");
     const canvas = root.querySelector("canvas");
+    const undoButton = root.querySelector(".undo-button");
     const clearButton = root.querySelector(".clear-button");
     const submitButton = root.querySelector(".submit-button");
     const message = root.querySelector(".canvas-message");
@@ -180,6 +197,28 @@ export default function(component) {
         context.fillStyle = "#FFFFFF";
         context.fillRect(0, 0, canvas.width, canvas.height);
         context.restore();
+    }
+
+    // Endast läget före det senaste strecket sparas för att hålla funktionen enkel.
+    function updateUndoButton() {
+        undoButton.disabled = !canvas.undoSnapshot;
+    }
+
+    function clearUndoState() {
+        canvas.undoSnapshot = null;
+        canvas.undoHadDrawing = false;
+        updateUndoButton();
+    }
+
+    function saveUndoState() {
+        const snapshot = document.createElement("canvas");
+        snapshot.width = canvas.width;
+        snapshot.height = canvas.height;
+        snapshot.getContext("2d").drawImage(canvas, 0, 0);
+
+        canvas.undoSnapshot = snapshot;
+        canvas.undoHadDrawing = canvas.dataset.hasDrawing === "true";
+        updateUndoButton();
     }
 
     function resizeCanvas() {
@@ -225,8 +264,37 @@ export default function(component) {
     function clearCanvas(showMessage = true) {
         fillWhite();
         canvas.dataset.hasDrawing = "false";
+        clearUndoState();
         message.dataset.kind = "";
         message.textContent = showMessage ? "Ritytan är rensad." : "";
+    }
+
+    function undoLastStroke() {
+        const snapshot = canvas.undoSnapshot;
+        if (!snapshot) {
+            return;
+        }
+
+        fillWhite();
+        context.save();
+        context.setTransform(1, 0, 0, 1, 0, 0);
+        context.drawImage(
+            snapshot,
+            0,
+            0,
+            snapshot.width,
+            snapshot.height,
+            0,
+            0,
+            canvas.width,
+            canvas.height,
+        );
+        context.restore();
+
+        canvas.dataset.hasDrawing = String(canvas.undoHadDrawing);
+        clearUndoState();
+        message.textContent = "";
+        message.dataset.kind = "";
     }
 
     function getPoint(event) {
@@ -238,7 +306,7 @@ export default function(component) {
     }
 
     function startDrawing(event) {
-        if (event.pointerType === "mouse" && event.button !== 0) {
+        if (isDrawing || (event.pointerType === "mouse" && event.button !== 0)) {
             return;
         }
 
@@ -247,6 +315,7 @@ export default function(component) {
         activePointer = event.pointerId;
         canvas.setPointerCapture(event.pointerId);
 
+        saveUndoState();
         const point = getPoint(event);
         context.beginPath();
         context.arc(point.x, point.y, context.lineWidth / 2, 0, Math.PI * 2);
@@ -304,6 +373,7 @@ export default function(component) {
     } else {
         message.textContent = "";
         message.dataset.kind = "";
+        updateUndoButton();
     }
 
     const resizeObserver = new ResizeObserver(resizeCanvas);
@@ -313,6 +383,7 @@ export default function(component) {
     canvas.addEventListener("pointermove", continueDrawing);
     canvas.addEventListener("pointerup", stopDrawing);
     canvas.addEventListener("pointercancel", stopDrawing);
+    undoButton.addEventListener("click", undoLastStroke);
     clearButton.addEventListener("click", clearCanvas);
     submitButton.addEventListener("click", submitDrawing);
 
@@ -322,6 +393,7 @@ export default function(component) {
         canvas.removeEventListener("pointermove", continueDrawing);
         canvas.removeEventListener("pointerup", stopDrawing);
         canvas.removeEventListener("pointercancel", stopDrawing);
+        undoButton.removeEventListener("click", undoLastStroke);
         clearButton.removeEventListener("click", clearCanvas);
         submitButton.removeEventListener("click", submitDrawing);
     };
