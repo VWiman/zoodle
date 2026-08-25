@@ -103,9 +103,7 @@ Appen använder den frysta CNN-modellen från träningskörning `20260728_155542
 
 ## Driftsättning
 
-Efter merge till `main` skapas Community Cloud-appen från repot `VWiman/zoodle`. Den använder `app/streamlit_app.py` som entrypoint och Python 3.12. Önskad subdomän är `zoodle`, med `zoodle-viktorwiman` som reservnamn.
-
-När den slutliga `streamlit.app`-adressen är klar kan `www.viktorwiman.se/zoodle` ställas in som en vanlig redirect till appen.
+Projektet är driftsatt med Streamlit Community Cloud från repot `VWiman/zoodle`. Appen använder `app/streamlit_app.py` som entrypoint och Python 3.12. Den publika appen finns på [https://zoodle.streamlit.app/](https://zoodle.streamlit.app/).
 
 ## Kör projektet
 
@@ -227,4 +225,4 @@ chore: update gitignore
 
 ## Status
 
-Projektets träningsflöden för PCA + KNN och CNN samt gemensam modellutvärdering är implementerade. Notebooken redovisar de aktuella modellresultaten sida vid sida. Streamlit-appen använder den valda CNN-modellen för ett publikt ritspel, medan ett separat automatiserat jämförelsesteg i pipeline kan läggas till senare.
+Projektets träningsflöden för PCA + KNN och CNN samt gemensam modellutvärdering är implementerade. Notebooken redovisar de aktuella modellresultaten sida vid sida. Streamlit-appen använder den valda CNN-modellen för ett publikt ritspel.
